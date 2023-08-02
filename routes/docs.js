@@ -17,7 +17,14 @@ router.get('/', (req, res) => {
 })
 
 router.get('/:id/table', (req, res) => {
-    res.render('show', {
+    res.render('table', {
+        docs: docs,
+        selected_doc_id: req.params.id
+    })
+})
+
+router.get('/:id/columns', (req, res) => {
+    res.render('columns', {
         docs: docs,
         selected_doc_id: req.params.id
     })

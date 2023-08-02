@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Document</title>
+</head>
+<body>
+    <!-- section with tables list -->
+    <div class="list-group" style="width: 300px; display: inline-block">
+        <% docs.forEach(doc => { %>
+            <% if (doc.id == selected_doc_id) { %>
+                <div class="list-group-item list-group-item-action active">
+                    <a href="/docs/<%= doc.id %>/table" style="color: white">
+                        <%= doc.table_name %>
+                    </a>
+                    <div>
+                        <%= doc.description %>
+                    </div>
+                </div>
+            <% } else { %>
+                <div class="list-group-item list-group-item-action">
+                    <a href="/docs/<%= doc.id %>/table">
+                        <%= doc.table_name %>
+                    </a>
+                    <div>
+                        <%= doc.description %>
+                    </div>
+                </div>
+            <% } %>
+        <% }) %>
+    </div>
+
+    <!-- section with a documentation -->
+    <div style="display: inline-block; vertical-align: top; margin-top:20px; margin-left:20px">
+        <div>
+            <a href="/docs/<%= selected_doc_id %>/table">Table</a>
+            <a href="/docs/<%= selected_doc_id %>/columns">Columns</a>
+        </div>
+        <!-- documentation for tables -->
+        <div style="margin-top:20px">
+            <span style="display: block">Description:</span>
+            <textarea rows="20" cols="200"></textarea>
+        </div>
+        <!-- documentation for columns -->
+
+    </div>
+</body>
+</html>
