@@ -39,13 +39,25 @@
             <a href="/docs/<%= selected_doc_id %>/table">Table</a>
             <a href="/docs/<%= selected_doc_id %>/columns">Columns</a>
         </div>
-        <!-- documentation for tables -->
-        <div style="margin-top:20px">
-            <span style="display: block">Description:</span>
-            <textarea rows="20" cols="200"></textarea>
-        </div>
         <!-- documentation for columns -->
-
+        <table class="table table-bordered">
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">Column</th>
+                <th scope="col">Description</th>
+            </tr>
+            <% docs.forEach(doc => { %>
+                <% if (doc.id == selected_doc_id){ %>
+                    <% doc.columns.forEach(column => { %>
+                        <tr>
+                            <th scope="row">1</th>
+                            <th scope="row"><%= column.column_name %></th>
+                            <th scope="row"><%= column.column_description %></th>
+                        </tr>
+                    <% }) %>
+                <% } %>
+            <% }) %>
+        </table>
     </div>
 </body>
 </html>
