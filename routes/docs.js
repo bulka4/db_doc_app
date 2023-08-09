@@ -1,49 +1,55 @@
 const express = require('express')
+const Doc = require('./../models/docs')
 const router = express.Router()
 
-const docs = [{
-    id: 0,
-    table_name: 'table1',
-    description: 'description1',
-    columns: [{
-        column_name: 'col11',
-        column_description: 'this is column 1 from table 1'
-    },
-    {
-        column_name: 'col12',
-        column_description: 'this is column 2 from table 1'
-    }]
-},
-{
-    id: 1,
-    table_name: 'table2',
-    description: 'description2',
-    columns: [{
-        column_name: 'col21',
-        column_description: 'this is column 1 from table 2'
-    },
-    {
-        column_name: 'col22',
-        column_description: 'this is column 2 from table 2'
-    }]
-}]
-
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+    const docs = await Doc.find()
     res.render('index', {docs: docs})
 })
 
-router.get('/:id/table', (req, res) => {
+router.get('/:id/table', async (req, res) => {
+    const docs = await Doc.find()
+    let selected_doc
+    docs.forEach(doc => {
+        if (doc.tableId == req.params.id){
+            selected_doc = doc
+        }
+    })
     res.render('table', {
         docs: docs,
-        selected_doc_id: req.params.id
+        selected_doc: selected_doc
     })
 })
 
-router.get('/:id/columns', (req, res) => {
+router.get('/:id/columns', async (req, res) => {
+    const docs = await Doc.find()
+    let selected_doc
+    docs.forEach(doc => {
+        if (doc.tableId == req.params.id){
+            selected_doc = doc
+        }
+    })
     res.render('columns', {
         docs: docs,
-        selected_doc_id: req.params.id
+        selected_doc: selected_doc
     })
 })
+
+router.put('/:id/table', async (req, res) => {
+    const doc = await Doc.findOne({tableId: req.params.id})
+    doc.tableDescription = req.body.description
+    await doc.save()
+    res.redirect(`/docs/${req.params.id}/table`)
+})
+
+router.put('/:id/columns', async (req, res) => {
+    const doc = await Doc.findOne({tableId: req.params.id})
+    Object.entries(req.body).forEach(([_, columnDescription], index) => {
+        doc.columns[index].columnDescription = columnDescription
+    })
+    await doc.save()
+    res.redirect(`/docs/${req.params.id}/columns`)
+})
+
 
 module.exports = router
