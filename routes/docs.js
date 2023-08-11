@@ -2,27 +2,44 @@ const express = require('express')
 const Doc = require('./../models/docs')
 const router = express.Router()
 
+// post request for searching through tables and columns descriptions
 router.post('/search', async (req, res) => {
     const searchedQuery = req.body.searchBar
     const docs = Doc.find()
     const model = new Model()
     await model.load_model()
-    
+
     searchedQueryEncoded = await model.encode(searchedQuery)
-    const similarity_scores = []
+    // similarityScores[i] is a similarity score for the table with id = i
+    let similarityScores = []
 
     docs.forEach(doc => {
-        
+        const docSimilarityScores = []
+        doc.tableDescriptionEncoded.forEach(vector => {
+            docSimilarityScores.push(cos_sim(vector, searchedQueryEncoded))
+        })
+        doc.columns.forEach(column => {
+            column.columnDescriptionEncoded.forEach(vector => {
+                docSimilarityScores.push(cos_sim(vector, searchedQueryEncoded))
+            })
+        })
+        similarityScores.push(Math.max(...docSimilarityScores))
     })
+
+    // sort descending
+    similarityScores = similarityScores.sort(compareFn = (a, b) => {return b - a})
+
 
     res.redirect(`${req.body.tableId}/table`)
 })
 
+// get request for viewing only list of tables without descriptions
 router.get('/', async (req, res) => {
     const docs = await Doc.find()
     res.render('index', {docs: docs})
 })
 
+// get request for viewing tables descriptions
 router.get('/:id/table', async (req, res) => {
     const docs = await Doc.find()
     let selected_doc
@@ -37,6 +54,7 @@ router.get('/:id/table', async (req, res) => {
     })
 })
 
+// get request for viewing columns descriptions
 router.get('/:id/columns', async (req, res) => {
     const docs = await Doc.find()
     let selected_doc
@@ -51,34 +69,65 @@ router.get('/:id/columns', async (req, res) => {
     })
 })
 
+// put request for saving table description
 router.put('/:id/table', async (req, res) => {
     const doc = await Doc.findOne({tableId: req.params.id})
     const model = new Model()
     await model.load_model()
 
     doc.tableDescription = req.body.description
-    doc.tableDescriptionEncoded = await model.encode(req.body.description)
+    doc.tableDescriptionEncoded = []
 
-    await doc.save()
-    res.redirect(`/docs/${req.params.id}/table`)
+    if (doc.tableDescription == '') {
+        await doc.save()
+        res.redirect(`/docs/${req.params.id}/table`)
+    }
+    else {
+        const tableDescriptionSplitted = doc.tableDescription.split(' ')
+        // we divide table description into chunks each containing chunkSize words
+        const chunkSize = 5
+        let tableDescriptionEncoded
+        for (let i = 0; i <= tableDescriptionSplitted.length; i += chunkSize){
+            tableDescriptionEncoded = await model.encode(tableDescriptionSplitted.slice(i, i + chunkSize).join(' '))
+            doc.tableDescriptionEncoded.push(tableDescriptionEncoded)
+        }
+
+        await doc.save()
+        res.redirect(`/docs/${req.params.id}/table`)
+    }
+    
 })
 
+// put request for saving columns description
 router.put('/:id/columns', async (req, res) => {
     const doc = await Doc.findOne({tableId: req.params.id})
     const model = new Model()
     await model.load_model()
 
-    Object.entries(req.body).forEach(async ([_, columnDescription], index) => {
-        doc.columns[index].columnDescription = columnDescription
-        doc.columns[index].columnDescriptionEncoded = await model.encode(columnDescription)
-    })
+    let column
+    for (let [index, [_, columnDescription]] of Object.entries(req.body).entries()){
+        column = doc.columns[index]
 
+        column.columnDescription = columnDescription
+        column.columnDescriptionEncoded = []
+
+        if (columnDescription == '') continue
+
+        const columnDescriptionSplitted = column.columnDescription.split(' ')
+        // we divide column description into chunks each containing chunkSize words
+        const chunkSize = 5
+        let columnDescriptionEncoded
+        for (let i = 0; i <= columnDescriptionSplitted.length; i += chunkSize){
+            columnDescriptionEncoded = await model.encode(columnDescriptionSplitted.slice(i, i + chunkSize).join(' '))
+            column.columnDescriptionEncoded.push(columnDescriptionEncoded)
+        }
+    }
     await doc.save()
-
     res.redirect(`/docs/${req.params.id}/columns`)
 })
 
 
+// model for search engine
 class Model{
     async load_model(){
         // loading a model in the ONNX format prepared by the script ml_model/model_preparation.py

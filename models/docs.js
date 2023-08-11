@@ -10,7 +10,7 @@ const col_schema = new mongoose.Schema({
     },
     // columnDescription encoded (changed into a vector) using transformer model for checking sentence similarity
     columnDescriptionEncoded: {
-        type: [Number]
+        type: Array
     }
 }, {_id: false})
 
@@ -28,7 +28,7 @@ const doc_schema = new mongoose.Schema({
     },
     // tableDescription encoded (changed into a vector) using transformer model for checking sentence similarity
     tableDescriptionEncoded: {
-        type: [Number]
+        type: Array
     },
     columns: [col_schema]
 })

@@ -34,22 +34,22 @@ async function load_tables(query){
     let index = 0
     let docs = []
     let doc = {
-        table_id: index,
-        table_name: actual_table_name,
+        tableId: index,
+        tableName: actual_table_name,
         columns: []
     }
     
     result.recordset.forEach((record) => {
         if (record.table_name == actual_table_name){
-            doc.columns.push({column_name: record.column_name})
+            doc.columns.push({columnName: record.column_name})
         } else {
             docs.push(doc)
             index += 1
             actual_table_name = record.table_name
             doc = {
-                table_id: index,
-                table_name: record.table_name,
-                columns: [{column_name: record.column_name}]
+                tableId: index,
+                tableName: record.table_name,
+                columns: [{columnName: record.column_name}]
             }
         }
     })
