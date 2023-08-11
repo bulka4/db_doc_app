@@ -8,7 +8,7 @@ const col_schema = new mongoose.Schema({
     columnDescription: {
         type: String
     },
-    // columnDescription encoded using transformer model for checking sentence similarity
+    // columnDescription encoded (changed into a vector) using transformer model for checking sentence similarity
     columnDescriptionEncoded: {
         type: [Number]
     }
@@ -26,7 +26,7 @@ const doc_schema = new mongoose.Schema({
     tableDescription: {
         type: String
     },
-    // tableDescription encoded using transformer model for checking sentence similarity
+    // tableDescription encoded (changed into a vector) using transformer model for checking sentence similarity
     tableDescriptionEncoded: {
         type: [Number]
     },

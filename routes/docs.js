@@ -4,10 +4,16 @@ const router = express.Router()
 
 router.post('/search', async (req, res) => {
     const searchedQuery = req.body.searchBar
+    const docs = Doc.find()
     const model = new Model()
-    
     await model.load_model()
-    result = model.predict('I like dogs')
+    
+    searchedQueryEncoded = await model.encode(searchedQuery)
+    const similarity_scores = []
+
+    docs.forEach(doc => {
+        
+    })
 
     res.redirect(`${req.body.tableId}/table`)
 })
@@ -47,18 +53,28 @@ router.get('/:id/columns', async (req, res) => {
 
 router.put('/:id/table', async (req, res) => {
     const doc = await Doc.findOne({tableId: req.params.id})
+    const model = new Model()
+    await model.load_model()
 
     doc.tableDescription = req.body.description
+    doc.tableDescriptionEncoded = await model.encode(req.body.description)
+
     await doc.save()
     res.redirect(`/docs/${req.params.id}/table`)
 })
 
 router.put('/:id/columns', async (req, res) => {
     const doc = await Doc.findOne({tableId: req.params.id})
-    Object.entries(req.body).forEach(([_, columnDescription], index) => {
+    const model = new Model()
+    await model.load_model()
+
+    Object.entries(req.body).forEach(async ([_, columnDescription], index) => {
         doc.columns[index].columnDescription = columnDescription
+        doc.columns[index].columnDescriptionEncoded = await model.encode(columnDescription)
     })
+
     await doc.save()
+
     res.redirect(`/docs/${req.params.id}/columns`)
 })
 
@@ -75,7 +91,7 @@ class Model{
         return [this.model, this.tokenizer]
     }
 
-    async predict(inputs){
+    async encode(inputs){
         // encode input text
         inputs = await this.tokenizer(inputs)
         let result = await this.model(inputs)
@@ -96,6 +112,25 @@ class Model{
 
         return result
     }
+}
+
+// cosine similarity for checking how similar are 2 sentence embeddings
+function cos_sim(A, B){
+    var dotproduct = 0;
+    var mA = 0;
+    var mB = 0;
+
+    for(var i = 0; i < A.length; i++) {
+        dotproduct += A[i] * B[i];
+        mA += A[i] * A[i];
+        mB += B[i] * B[i];
+    }
+
+    mA = Math.sqrt(mA);
+    mB = Math.sqrt(mB);
+    var similarity = dotproduct / (mA * mB);
+
+    return similarity;
 }
 
 // function for reshaping 1d array into 2d array
