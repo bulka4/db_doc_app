@@ -4,6 +4,8 @@ const mongoose = require('mongoose')
 const docs_router = require('./routes/docs')
 const app = express()
 
+require('dotenv').config()
+
 mongoose.connect('mongodb://127.0.0.1/db_doc')
 
 app.set('view engine', 'ejs')
