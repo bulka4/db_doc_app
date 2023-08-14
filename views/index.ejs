@@ -9,17 +9,23 @@
     <script type="module" src="/scripts.js"></script>
 </head>
 <body>
+    <!-- section with tables list -->
     <div class="list-group" style="width: 300px; height: 100vh; overflow: auto; display: inline-block">
-        <div style="text-align: center; margin: 20px">
-            <label>Search Tables</label>
-            <input type="input" id="searchBar" onkeyup="search(this)">
-        </div>
+        <form action="/docs/search" method="POST" style="margin-bottom: 20px">
+            <div style="text-align: center;">
+                <label>Search</label>
+            </div>
+            <div style="text-align: center;">
+                <input type="input" name="searchBar">
+                <button type="submit" name="tableId">Search</button>
+            </div>
+        </form>
         <% docs.forEach(doc => { %>
             <div class="list-group-item list-group-item-action" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
                 <a href="/docs/<%= doc.tableId %>/table">
                     <%= doc.tableName %>
                 </a>
-                <div>
+                <div style="text-overflow: ellipsis; overflow: hidden">
                     <%= doc.tableDescription %>
                 </div>
             </div>

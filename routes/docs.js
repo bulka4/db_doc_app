@@ -2,106 +2,65 @@ const express = require('express')
 const Doc = require('./../models/docs')
 const router = express.Router()
 
-// post request for searching through tables and columns descriptions
-router.post('/search', async (req, res) => {
-    const searchedQuery = req.body.searchBar
-    const docs = Doc.find()
-    const model = new Model()
-    await model.load_model()
-
-    searchedQueryEncoded = await model.encode(searchedQuery)
-    // similarityScores[i] is a similarity score for the table with id = i
-    let similarityScores = []
-
-    docs.forEach(doc => {
-        const docSimilarityScores = []
-        doc.tableDescriptionEncoded.forEach(vector => {
-            docSimilarityScores.push(cos_sim(vector, searchedQueryEncoded))
-        })
-        doc.columns.forEach(column => {
-            column.columnDescriptionEncoded.forEach(vector => {
-                docSimilarityScores.push(cos_sim(vector, searchedQueryEncoded))
-            })
-        })
-        similarityScores.push(Math.max(...docSimilarityScores))
-    })
-
-    // sort descending
-    similarityScores = similarityScores.sort(compareFn = (a, b) => {return b - a})
-
-
-    res.redirect(`${req.body.tableId}/table`)
-})
-
-// get request for viewing only list of tables without descriptions
 router.get('/', async (req, res) => {
-    const docs = await Doc.find()
-    res.render('index', {docs: docs})
+    res.render('index')
 })
 
 // get request for viewing tables descriptions
 router.get('/:id/table', async (req, res) => {
     const docs = await Doc.find()
-    let selected_doc
-    docs.forEach(doc => {
-        if (doc.tableId == req.params.id){
-            selected_doc = doc
-        }
-    })
+    const searchedQuery = if_undefined(req.query.searchedQuery, '')
+    // find for which table documentation is actually being displayed
+    const selected_doc = find_selected_doc(docs, req.params.id)
+    // sort documents such that at the top are documents with table or column description
+    // with a meaning the most similar to the searched query from search engine
+    const sortedDocs = await sortDocs(searchedQuery, docs)
+
     res.render('table', {
-        docs: docs,
-        selected_doc: selected_doc
+        docs: sortedDocs,
+        selected_doc: selected_doc,
+        searchedQuery: searchedQuery
     })
 })
 
 // get request for viewing columns descriptions
 router.get('/:id/columns', async (req, res) => {
     const docs = await Doc.find()
-    let selected_doc
-    docs.forEach(doc => {
-        if (doc.tableId == req.params.id){
-            selected_doc = doc
-        }
-    })
+    const searchedQuery = if_undefined(req.query.searchedQuery, '')
+    const selected_doc = find_selected_doc(docs, req.params.id)
+    const sortedDocs = await sortDocs(searchedQuery, docs)
+
     res.render('columns', {
-        docs: docs,
-        selected_doc: selected_doc
+        docs: sortedDocs,
+        selected_doc: selected_doc,
+        searchedQuery: searchedQuery
     })
 })
 
 // put request for saving table description
 router.put('/:id/table', async (req, res) => {
     const doc = await Doc.findOne({tableId: req.params.id})
+    const searchedQuery = if_undefined(req.query.searchedQuery, '')
     const model = new Model()
+
     await model.load_model()
 
     doc.tableDescription = req.body.description
-    doc.tableDescriptionEncoded = []
-
-    if (doc.tableDescription == '') {
-        await doc.save()
-        res.redirect(`/docs/${req.params.id}/table`)
-    }
-    else {
-        const tableDescriptionSplitted = doc.tableDescription.split(' ')
-        // we divide table description into chunks each containing chunkSize words
-        const chunkSize = 5
-        let tableDescriptionEncoded
-        for (let i = 0; i <= tableDescriptionSplitted.length; i += chunkSize){
-            tableDescriptionEncoded = await model.encode(tableDescriptionSplitted.slice(i, i + chunkSize).join(' '))
-            doc.tableDescriptionEncoded.push(tableDescriptionEncoded)
-        }
-
-        await doc.save()
-        res.redirect(`/docs/${req.params.id}/table`)
-    }
+    doc.tableDescriptionEncoded = await encode(req.body.description, 5, model)
     
+    await doc.save()
+    if (searchedQuery != '')
+        res.redirect(`/docs/${req.params.id}/table?searchedQuery=${searchedQuery}`)
+    else
+        res.redirect(`/docs/${req.params.id}/table`)
 })
 
 // put request for saving columns description
 router.put('/:id/columns', async (req, res) => {
     const doc = await Doc.findOne({tableId: req.params.id})
+    const searchedQuery = if_undefined(req.query.searchedQuery, '')
     const model = new Model()
+    
     await model.load_model()
 
     let column
@@ -109,21 +68,33 @@ router.put('/:id/columns', async (req, res) => {
         column = doc.columns[index]
 
         column.columnDescription = columnDescription
-        column.columnDescriptionEncoded = []
-
-        if (columnDescription == '') continue
-
-        const columnDescriptionSplitted = column.columnDescription.split(' ')
-        // we divide column description into chunks each containing chunkSize words
-        const chunkSize = 5
-        let columnDescriptionEncoded
-        for (let i = 0; i <= columnDescriptionSplitted.length; i += chunkSize){
-            columnDescriptionEncoded = await model.encode(columnDescriptionSplitted.slice(i, i + chunkSize).join(' '))
-            column.columnDescriptionEncoded.push(columnDescriptionEncoded)
-        }
+        column.columnDescriptionEncoded = await encode(columnDescription, 5, model)
     }
     await doc.save()
-    res.redirect(`/docs/${req.params.id}/columns`)
+    if (searchedQuery != '')
+        res.redirect(`/docs/${req.params.id}/columns?searchedQuery=${searchedQuery}`)
+    else
+        res.redirect(`/docs/${req.params.id}/columns`)
+})
+
+// post request for searching through tables and columns descriptions
+// it redirects to the page with table description
+router.post('/table/search', async (req, res) => {
+    const searchedQuery = req.body.searchBar
+    if (searchedQuery != '')
+        res.redirect(`/docs/${req.body.tableId}/table?searchedQuery=${searchedQuery}`)
+    else
+        res.redirect(`/docs/${req.body.tableId}/table`)
+})
+
+// post request for searching through tables and columns descriptions
+// it redirects to the page with columns description
+router.post('/columns/search', async (req, res) => {
+    const searchedQuery = req.body.searchBar
+    if (searchedQuery != '')
+        res.redirect(`/docs/${req.body.tableId}/columns?searchedQuery=${searchedQuery}`)
+    else
+        res.redirect(`/docs/${req.body.tableId}/columns`)
 })
 
 
@@ -163,8 +134,32 @@ class Model{
     }
 }
 
+
+// divide text into chunks consisting of chunkSize words and encode each of them
+async function encode(text, chunkSize, model){
+    let textEncoded = []
+
+    if (text == '') {
+        return textEncoded
+    }
+    else {
+        const textSplitted = text.split(' ')
+        // we divide table description into chunks each containing chunkSize words
+        let textChunkEncoded
+        for (let i = 0; i <= textSplitted.length; i += chunkSize){
+            textChunkEncoded = await model.encode(textSplitted.slice(i, i + chunkSize).join(' '))
+            textEncoded.push(textChunkEncoded)
+        }
+
+        return textEncoded
+    }
+}
+
+
 // cosine similarity for checking how similar are 2 sentence embeddings
 function cos_sim(A, B){
+    if (A.length == 0 | B.length == 0) return 0
+
     var dotproduct = 0;
     var mA = 0;
     var mB = 0;
@@ -182,6 +177,7 @@ function cos_sim(A, B){
     return similarity;
 }
 
+
 // function for reshaping 1d array into 2d array
 Array.prototype.reshape = function(rows, cols) {
     var copy = this.slice(0); // Copy all elements.
@@ -197,7 +193,72 @@ Array.prototype.reshape = function(rows, cols) {
         }
         this.push(row);
     }
-};
+}
+
+
+// sorting documents based on searched query typed in to search engine such that at the top are
+// documents with table or column description with the most similart meaning to the searched query
+async function sortDocs(searchedQuery, docs){
+    const model = new Model()
+    await model.load_model()
+
+    searchedQueryEncoded = await model.encode(searchedQuery)
+
+    if (searchedQuery == '') return docs
+
+    // similarityScores[i] is a similarity score for the table with id = i
+    const similarityScores = {}
+
+    docs.forEach((doc, index) => {
+        similarityScores[index] = []
+        if (doc.tableDescriptionEncoded.length == 0) similarityScores[index].push(0)
+        else {
+            doc.tableDescriptionEncoded.forEach(vector => {
+                similarityScores[index].push(cos_sim(vector, searchedQueryEncoded))
+            })
+        }
+        doc.columns.forEach(column => {
+            if (column.columnDescriptionEncoded.length == 0) similarityScores[index].push(0)
+            else {
+                column.columnDescriptionEncoded.forEach(vector => {
+                    similarityScores[index].push(cos_sim(vector, searchedQueryEncoded))
+                })
+            }
+        })
+        similarityScores[index] = Math.max(...similarityScores[index])
+    })
+
+    // sort descending similarityScores
+    const sortable = []
+    for (let key in similarityScores){
+        sortable.push([similarityScores[key], key])
+    }
+    sortable.sort((a, b) => {return b[0] - a[0]})
+
+    // sorting docs
+    const sortedDocs = []
+    for (let value of sortable) sortedDocs.push(await Doc.findOne({tableId: value[1]}))
+
+    return sortedDocs
+}
+
+
+function find_selected_doc(docs, tableId){
+    let selected_doc
+    docs.forEach(doc => {
+        if (doc.tableId == tableId){
+            selected_doc = doc
+        }
+    })
+
+    return selected_doc
+}
+
+
+function if_undefined(x, y){
+    if (x != undefined) return x
+    else return y
+}
 
 
 module.exports = router

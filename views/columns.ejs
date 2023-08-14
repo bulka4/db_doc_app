@@ -11,30 +11,37 @@
 <body>
     <!-- section with tables list -->
     <div class="list-group" style="width: 300px; height: 100vh; overflow: auto; display: inline-block">
-        <div style="text-align: center; margin: 20px">
-            <label>Search Tables</label>
-            <input type="input" id="searchBar" onkeyup="search(this)">
-        </div>
+        <form action="/docs/columns/search" method="POST" style="margin-bottom: 20px">
+            <div style="text-align: center;">
+                <label>Search</label>
+            </div>
+            <div style="text-align: center;">
+                <input type="input" name="searchBar" value ="<%= searchedQuery %>">
+                <button type="submit" name="tableId" value="<%= selected_doc.tableId %>">Search</button>
+            </div>
+        </form>
         <% docs.forEach(doc => { %>
             <% if (doc.tableId == selected_doc.tableId) { %>
                 <div class="list-group-item list-group-item-action active" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
-                    <a href="/docs/<%= doc.tableId %>/table" style="color: white">
-                        <%= doc.tableName %>
-                    </a>
-                    <div style="text-overflow: ellipsis; overflow: hidden">
-                        <%= doc.tableDescription %>
-                    </div>
-                </div>
+                <% if (searchedQuery != '') { %>
+                    <a href="/docs/<%= doc.tableId %>/table?searchedQuery=<%= searchedQuery %>" style="color: white">
+                <% } else { %>
+                    <a href="/docs/<%= doc.tableId %>/table" style="color: white"></a>
+                <% } %>
             <% } else { %>
                 <div class="list-group-item list-group-item-action" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+                <% if (searchedQuery != '') { %>
+                    <a href="/docs/<%= doc.tableId %>/table?searchedQuery=<%= searchedQuery %>">
+                <% } else { %>
                     <a href="/docs/<%= doc.tableId %>/table">
+                <% } %>
+            <% } %>
                         <%= doc.tableName %>
                     </a>
                     <div style="text-overflow: ellipsis; overflow: hidden">
                         <%= doc.tableDescription %>
                     </div>
                 </div>
-            <% } %>
         <% }) %>
     </div>
 
@@ -44,11 +51,16 @@
             <h1><%= selected_doc.tableName %></h1>
         </header>
         <div style="margin-top:20px">
-            <a href="/docs/<%= selected_doc.tableId %>/table">Table</a>
-            <a href="/docs/<%= selected_doc.tableId %>/columns">Columns</a>
+            <% if (searchedQuery != '') { %>
+                <a href="/docs/<%= selected_doc.tableId %>/table?searchedQuery=<%= searchedQuery %>">Table</a>
+                <a href="/docs/<%= selected_doc.tableId %>/columns?searchedQuery=<%= searchedQuery %>">Columns</a>
+            <% } else { %>
+                <a href="/docs/<%= selected_doc.tableId %>/table">Table</a>
+                <a href="/docs/<%= selected_doc.tableId %>/columns">Columns</a>
+            <% } %>
         </div>
         <!-- documentation for columns -->
-        <form action="/docs/<%= selected_doc.tableId %>/columns?_method=PUT" method="POST" style="margin-top:20px">
+        <form action="/docs/<%= selected_doc.tableId %>/columns?_method=PUT&searchedQuery=<%= searchedQuery %>" method="POST" style="margin-top:20px">
             <div style="display: inline-block">
                 <table class="table table-bordered">
                     <tr>
