@@ -35,7 +35,8 @@ app.use(flash())
 app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: {_expires: 30 * 60 * 1000} // session expires after 30 minutes and user needs to log in again
 }))
 app.use(passport.initialize())
 app.use(passport.session())
@@ -43,7 +44,17 @@ app.use(passport.session())
 app.use('/docs', docsRouter)
 app.use('/', loginRouter)
 
+app.get('/', checkNotAuthenticated, (req, res) => {
+    res.redirect('/login')
+})
 
 app.listen(4000)
 
 
+function checkNotAuthenticated(req, res, next) {
+    if (req.isAuthenticated()) {
+        return res.redirect('/docs/0/table')
+    }
+
+    next()
+}

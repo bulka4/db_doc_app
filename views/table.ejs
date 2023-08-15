@@ -67,11 +67,15 @@
         </div>
         <!-- documentation for tables -->
         <div style="margin-top:20px">
-            <form action="/docs/<%= selected_doc.tableId %>/table?_method=PUT&searchedQuery=<%= searchedQuery %>" method="POST">
-                <span style="display: block">Table description:</span>
+            <% if (readOnly) { %>
+                <textarea rows="30" cols="150" name="description" readonly><%= selected_doc.tableDescription %></textarea>
+            <% } else { %>
+                <form action="/docs/<%= selected_doc.tableId %>/table?_method=PUT&searchedQuery=<%= searchedQuery %>" method="POST">
+                    <span style="display: block">Table description:</span>
                     <textarea rows="30" cols="150" name="description"><%= selected_doc.tableDescription %></textarea>
-                <button type="submit" class="btn btn-primary" style="vertical-align: top">Save</button>
-            </form>
+                    <button type="submit" class="btn btn-primary" style="vertical-align: top">Save</button>
+                </form>
+            <% } %>
         </div>
     </div>
 </body>

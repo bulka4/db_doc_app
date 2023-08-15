@@ -9,33 +9,51 @@ router.get('/', checkAuthenticated, async (req, res) => {
 
 // get request for viewing tables descriptions
 router.get('/:id/table', checkAuthenticated, async (req, res) => {
-    const docs = await Doc.find()
-    const searchedQuery = if_undefined(req.query.searchedQuery, '')
-    // find for which table documentation is actually being displayed
-    const selected_doc = find_selected_doc(docs, req.params.id)
-    // sort documents such that at the top are documents with table or column description
-    // with a meaning the most similar to the searched query from search engine
-    const sortedDocs = await sortDocs(searchedQuery, docs)
+    if (req.user.role == 'newUser') res.render('newUser')
+    else {
+        // readOnly indicates if user can only read documentation without editing
+        let readOnly
+        if (req.user.role == 'viewer') readOnly = true
+        else if (req.user.role == 'designer') readOnly = false
 
-    res.render('table', {
-        docs: sortedDocs,
-        selected_doc: selected_doc,
-        searchedQuery: searchedQuery
-    })
+        const docs = await Doc.find()
+        const searchedQuery = if_undefined(req.query.searchedQuery, '')
+        // find for which table documentation is actually being displayed
+        const selected_doc = find_selected_doc(docs, req.params.id)
+        // sort documents such that at the top are documents with table or column description
+        // with a meaning the most similar to the searched query from search engine
+        const sortedDocs = await sortDocs(searchedQuery, docs)
+
+        res.render('table', {
+            docs: sortedDocs,
+            selected_doc: selected_doc,
+            searchedQuery: searchedQuery,
+            readOnly: readOnly
+        })
+    }
 })
 
 // get request for viewing columns descriptions
 router.get('/:id/columns', checkAuthenticated, async (req, res) => {
-    const docs = await Doc.find()
-    const searchedQuery = if_undefined(req.query.searchedQuery, '')
-    const selected_doc = find_selected_doc(docs, req.params.id)
-    const sortedDocs = await sortDocs(searchedQuery, docs)
+    if (req.user.role == 'newUser') res.render('newUser')
+    else {
+        // readOnly indicates if user can only read documentation without editing
+        let readOnly
+        if (req.user.role == 'viewer') readOnly = true
+        else if (req.user.role == 'designer') readOnly = false
 
-    res.render('columns', {
-        docs: sortedDocs,
-        selected_doc: selected_doc,
-        searchedQuery: searchedQuery
-    })
+        const docs = await Doc.find()
+        const searchedQuery = if_undefined(req.query.searchedQuery, '')
+        const selected_doc = find_selected_doc(docs, req.params.id)
+        const sortedDocs = await sortDocs(searchedQuery, docs)
+
+        res.render('columns', {
+            docs: sortedDocs,
+            selected_doc: selected_doc,
+            searchedQuery: searchedQuery,
+            readOnly: readOnly
+        })
+    }
 })
 
 // put request for saving table description

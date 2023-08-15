@@ -10,12 +10,13 @@
 </head>
 <body>
     <div>
-        <!-- alert -->
+        <!-- check if user with this email already exists -->
         <script type="text/javascript">
             <% if (userExist === true) { %>
                 alert("user with this email already exists")
             <% } %>
         </script>
+        
         <div style="text-align: center; margin-bottom: 50px">
             <a href="/login" style="font-size: 30px">Login</a>
             <a href="/register" style="font-size: 30px">Register</a>

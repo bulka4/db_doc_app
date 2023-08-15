@@ -80,15 +80,21 @@
                                 <div name="column_name_<%= index %>"><%= column.columnName %></div>
                             </th>
                             <th scope="row">
-                                <textarea rows="1" cols="150" name="column_description_<%= index %>"><%= column.columnDescription %></textarea>
+                                <% if (readOnly) { %>
+                                    <textarea rows="1" cols="150" name="column_description_<%= index %>" readonly><%= column.columnDescription %></textarea>
+                                <% } else { %>
+                                    <textarea rows="1" cols="150" name="column_description_<%= index %>"><%= column.columnDescription %></textarea>
+                                <% } %>
                             </th>
                         </tr>
                     <% }) %>
                 </table>
             </div>
-            <button type="submit" class="btn btn-primary" style="vertical-align: top; display:inline-block">
-                Save
-            </button>
+            <% if (!readOnly) { %>
+                <button type="submit" class="btn btn-primary" style="vertical-align: top; display:inline-block">
+                    Save
+                </button>
+            <% } %>
         </form>
     </div>
 </body>
