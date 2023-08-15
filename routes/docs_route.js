@@ -1,13 +1,14 @@
 const express = require('express')
-const Doc = require('./../models/docs')
+const Doc = require('../models/docs')
 const router = express.Router()
 
-router.get('/', async (req, res) => {
-    res.render('index')
+
+router.get('/', checkAuthenticated, async (req, res) => {
+    res.redirect('/docs/0/table')
 })
 
 // get request for viewing tables descriptions
-router.get('/:id/table', async (req, res) => {
+router.get('/:id/table', checkAuthenticated, async (req, res) => {
     const docs = await Doc.find()
     const searchedQuery = if_undefined(req.query.searchedQuery, '')
     // find for which table documentation is actually being displayed
@@ -24,7 +25,7 @@ router.get('/:id/table', async (req, res) => {
 })
 
 // get request for viewing columns descriptions
-router.get('/:id/columns', async (req, res) => {
+router.get('/:id/columns', checkAuthenticated, async (req, res) => {
     const docs = await Doc.find()
     const searchedQuery = if_undefined(req.query.searchedQuery, '')
     const selected_doc = find_selected_doc(docs, req.params.id)
@@ -258,6 +259,15 @@ function find_selected_doc(docs, tableId){
 function if_undefined(x, y){
     if (x != undefined) return x
     else return y
+}
+
+// check if user is authenticated (if he has logged in)
+function checkAuthenticated(req, res, next) {
+    if (req.isAuthenticated()) {
+        return next()
+    }
+
+    return res.redirect('/login')
 }
 
 

@@ -47,9 +47,14 @@
 
     <!-- section with a documentation -->
     <div style="display: inline-block; vertical-align: top; margin-top:20px; margin-left:20px">
-        <header>
-            <h1><%= selected_doc.tableName %></h1>
-        </header>
+        <!-- logout button -->
+        <form action="/logout?_method=DELETE", method="POST">
+            <header>
+                <h1 style="display: inline"><%= selected_doc.tableName %></h1>
+                <button type="submit" style="position: absolute; right: 50px">Logout</button>
+            </header>
+        </form>
+        <!-- buttons redirecting to a page with table and columns descriptions -->
         <div style="margin-top:20px">
             <% if (searchedQuery != '') { %>
                 <a href="/docs/<%= selected_doc.tableId %>/table?searchedQuery=<%= searchedQuery %>">Table</a>
