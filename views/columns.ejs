@@ -10,13 +10,13 @@
 </head>
 <body>
     <!-- section with tables list -->
-    <div class="list-group" style="width: 300px; height: 100vh; overflow: auto; display: inline-block">
+    <div class="list-group" style="width: 300px; height: 100vh; overflow: auto; display: inline-block; width: 15%">
         <form action="/docs/columns/search" method="POST" style="margin-bottom: 20px">
             <div style="text-align: center;">
                 <label>Search</label>
             </div>
             <div style="text-align: center;">
-                <input type="input" name="searchBar" value ="<%= searchedQuery %>">
+                <input type="input" name="searchBar" style="width: 100%" value ="<%= searchedQuery %>">
                 <button type="submit" name="tableId" value="<%= selected_doc.tableId %>">Search</button>
             </div>
         </form>
@@ -46,7 +46,7 @@
     </div>
 
     <!-- section with a documentation -->
-    <div style="display: inline-block; vertical-align: top; margin-top:20px; margin-left:20px">
+    <div style="display: inline-block; vertical-align: top; margin-top:20px; margin-left:20px; width: 80%">
         <!-- logout button -->
         <form action="/logout?_method=DELETE", method="POST">
             <header>
@@ -66,11 +66,13 @@
         </div>
         <!-- documentation for columns -->
         <form action="/docs/<%= selected_doc.tableId %>/columns?_method=PUT&searchedQuery=<%= searchedQuery %>" method="POST" style="margin-top:20px">
-            <div style="display: inline-block">
+            <div style="display: inline-block; width: 90%">
                 <table class="table table-bordered">
                     <tr>
                         <th scope="col">#</th>
                         <th scope="col">Column</th>
+                        <th scope="col">Foreign Key</th>
+                        <th scope="col">Primary Key</th>
                         <th scope="col">Description</th>
                     </tr>
                     <% selected_doc.columns.forEach((column, index) => { %>
@@ -80,10 +82,24 @@
                                 <div name="column_name_<%= index %>"><%= column.columnName %></div>
                             </th>
                             <th scope="row">
-                                <% if (readOnly) { %>
-                                    <textarea rows="1" cols="150" name="column_description_<%= index %>" readonly><%= column.columnDescription %></textarea>
+                                <% if (column.foreignKey) { %>
+                                    <input checked name="foreignKey_<%= index %>" type="checkbox">
                                 <% } else { %>
-                                    <textarea rows="1" cols="150" name="column_description_<%= index %>"><%= column.columnDescription %></textarea>
+                                    <input name="foreignKey_<%= index %>" type="checkbox">
+                                <% } %>
+                            </th>
+                            <th scope="row">
+                                <% if (column.primaryKey) { %>
+                                    <input checked name="primaryKey_<%= index %>" type="checkbox">
+                                <% } else { %>
+                                    <input name="primaryKey_<%= index %>" type="checkbox">
+                                <% } %>
+                            </th>
+                            <th scope="row">
+                                <% if (readOnly) { %>
+                                    <textarea rows="1" cols="150" name="column_description_<%= index %>" readonly style="width: 100%"><%= column.columnDescription %></textarea>
+                                <% } else { %>
+                                    <textarea rows="1" cols="150" name="column_description_<%= index %>" style="width: 100%"><%= column.columnDescription %></textarea>
                                 <% } %>
                             </th>
                         </tr>
@@ -91,7 +107,7 @@
                 </table>
             </div>
             <% if (!readOnly) { %>
-                <button type="submit" class="btn btn-primary" style="vertical-align: top; display:inline-block">
+                <button type="submit" class="btn btn-primary" style="vertical-align: top; display:inline-block; width: 5%">
                     Save
                 </button>
             <% } %>

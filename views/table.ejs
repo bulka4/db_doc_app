@@ -10,13 +10,13 @@
 </head>
 <body>
     <!-- section with tables list -->
-    <div class="list-group" style="width: 300px; height: 100vh; overflow: auto; display: inline-block">
+    <div class="list-group" style="width: 300px; height: 100vh; overflow: auto; display: inline-block; width: 15%">
         <form action="/docs/table/search" method="POST" style="margin-bottom: 20px">
             <div style="text-align: center;">
                 <label>Search</label>
             </div>
             <div style="text-align: center;">
-                <input type="input" name="searchBar" value ="<%= searchedQuery %>">
+                <input type="input" name="searchBar" style="width: 100%" value ="<%= searchedQuery %>">
                 <button type="submit" name="tableId" value="<%= selected_doc.tableId %>">Search</button>
             </div>
         </form>
@@ -46,7 +46,7 @@
     </div>
 
     <!-- section with a documentation -->
-    <div style="display: inline-block; vertical-align: top; margin-top:20px; margin-left:20px">
+    <div style="display: inline-block; vertical-align: top; margin-top:20px; margin-left:20px; width: 80%">
         <!-- logout button -->
         <form action="/logout?_method=DELETE", method="POST">
             <header>
@@ -68,12 +68,12 @@
         <!-- documentation for tables -->
         <div style="margin-top:20px">
             <% if (readOnly) { %>
-                <textarea rows="30" cols="150" name="description" readonly><%= selected_doc.tableDescription %></textarea>
+                <textarea rows="30" cols="150" name="description" readonly style="width: 90%"><%= selected_doc.tableDescription %></textarea>
             <% } else { %>
                 <form action="/docs/<%= selected_doc.tableId %>/table?_method=PUT&searchedQuery=<%= searchedQuery %>" method="POST">
                     <span style="display: block">Table description:</span>
-                    <textarea rows="30" cols="150" name="description"><%= selected_doc.tableDescription %></textarea>
-                    <button type="submit" class="btn btn-primary" style="vertical-align: top">Save</button>
+                    <textarea rows="30" cols="150" name="description" style="width: 90%"><%= selected_doc.tableDescription %></textarea>
+                    <button type="submit" class="btn btn-primary" style="vertical-align: top; width: 5%">Save</button>
                 </form>
             <% } %>
         </div>

@@ -5,6 +5,14 @@ const col_schema = new mongoose.Schema({
         type: String,
         required: true
     },
+    foreignKey: {
+        type: Boolean,
+        default: false
+    },
+    primaryKey: {
+        type: Boolean,
+        default: false
+    },
     columnDescription: {
         type: String
     },

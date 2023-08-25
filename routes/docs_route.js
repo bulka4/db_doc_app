@@ -83,11 +83,19 @@ router.put('/:id/columns', async (req, res) => {
     await model.load_model()
 
     let column
-    for (let [index, [_, columnDescription]] of Object.entries(req.body).entries()){
+    let index
+    for (let [key, value] of Object.entries(req.body)){
+        index = key.slice(-1)
         column = doc.columns[index]
 
-        column.columnDescription = columnDescription
-        column.columnDescriptionEncoded = await encode(columnDescription, 5, model)
+        if (key.slice(0, -2) == 'column_description'){
+            column.columnDescription = value
+            column.columnDescriptionEncoded = await encode(value, 5, model)
+        } else if (key.slice(0, -2) == 'foreignKey'){
+            column.foreignKey = true
+        } else if (key.slice(0, -2) == 'primaryKey'){
+            column.primaryKey = true
+        }
     }
     await doc.save()
     if (searchedQuery != '')
