@@ -9,14 +9,21 @@
     <script type="module" src="/scripts.js"></script>
 </head>
 <body>
+    <!-- alert -->
+    <script>
+        <% if (alert == 'tooLongWord'){ %>
+            alert('You have entered too long word into a description. Max word length is equal to 50 characters.')
+        <% } %>
+    </script>
+
     <!-- section with tables list -->
     <div class="list-group" style="width: 300px; height: 100vh; overflow: auto; display: inline-block; width: 15%">
         <form action="/docs/table/search" method="POST" style="margin-bottom: 20px">
             <div style="text-align: center;">
-                <label>Search</label>
+                <label>Type in what you are looking for</label>
             </div>
             <div style="text-align: center;">
-                <input type="input" name="searchBar" style="width: 100%" value ="<%= searchedQuery %>">
+                <input type="input" name="searchBar" style="width: 100%; margin-bottom: 10px" value ="<%= searchedQuery %>">
                 <button type="submit" name="tableId" value="<%= selected_doc.tableId %>">Search</button>
             </div>
         </form>

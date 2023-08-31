@@ -1,6 +1,7 @@
 const express = require('express')
 const Doc = require('../models/docs')
 const router = express.Router()
+const alert = require('alert')
 
 
 router.get('/', checkAuthenticated, async (req, res) => {
@@ -18,6 +19,7 @@ router.get('/:id/table', checkAuthenticated, async (req, res) => {
 
         const docs = await Doc.find()
         const searchedQuery = if_undefined(req.query.searchedQuery, '')
+        const alert = if_undefined(req.query.alert, '')
         // find for which table documentation is actually being displayed
         const selected_doc = find_selected_doc(docs, req.params.id)
         // sort documents such that at the top are documents with table or column description
@@ -28,6 +30,7 @@ router.get('/:id/table', checkAuthenticated, async (req, res) => {
             docs: sortedDocs,
             selected_doc: selected_doc,
             searchedQuery: searchedQuery,
+            alert: alert,
             readOnly: readOnly
         })
     }
@@ -64,10 +67,25 @@ router.put('/:id/table', async (req, res) => {
 
     await model.load_model()
 
+    // if there is too long word in a table description then show an alert
+    for (let word of req.body.description.split(' ')){
+        if (word.length > 50){
+            if (searchedQuery != ''){
+                res.redirect(`/docs/${req.params.id}/table?searchedQuery=${searchedQuery}&alert=tooLongWord`)
+                return
+            }
+            else{
+                res.redirect(`/docs/${req.params.id}/table?alert=tooLongWord`)
+                return
+            }
+        }
+    }
+
     doc.tableDescription = req.body.description
     doc.tableDescriptionEncoded = await encode(req.body.description, 5, model)
     
     await doc.save()
+
     if (searchedQuery != '')
         res.redirect(`/docs/${req.params.id}/table?searchedQuery=${searchedQuery}`)
     else
