@@ -1,7 +1,6 @@
 const express = require('express')
-const Doc = require('../models/docs')
+const Docs = require('../models/docs')
 const router = express.Router()
-const alert = require('alert')
 
 
 router.get('/', checkAuthenticated, async (req, res) => {
@@ -17,7 +16,7 @@ router.get('/:id/table', checkAuthenticated, async (req, res) => {
         if (req.user.role == 'viewer') readOnly = true
         else if (req.user.role == 'designer') readOnly = false
 
-        const docs = await Doc.find()
+        const docs = await Docs.find()
         const searchedQuery = if_undefined(req.query.searchedQuery, '')
         const alert = if_undefined(req.query.alert, '')
         // find for which table documentation is actually being displayed
@@ -45,7 +44,7 @@ router.get('/:id/columns', checkAuthenticated, async (req, res) => {
         if (req.user.role == 'viewer') readOnly = true
         else if (req.user.role == 'designer') readOnly = false
 
-        const docs = await Doc.find()
+        const docs = await Docs.find()
         const searchedQuery = if_undefined(req.query.searchedQuery, '')
         const selected_doc = find_selected_doc(docs, req.params.id)
         const sortedDocs = await sortDocs(searchedQuery, docs)
@@ -61,7 +60,7 @@ router.get('/:id/columns', checkAuthenticated, async (req, res) => {
 
 // put request for saving table description
 router.put('/:id/table', async (req, res) => {
-    const doc = await Doc.findOne({tableId: req.params.id})
+    const doc = await Docs.findOne({tableId: req.params.id})
     const searchedQuery = if_undefined(req.query.searchedQuery, '')
     const model = new Model()
 
@@ -94,11 +93,16 @@ router.put('/:id/table', async (req, res) => {
 
 // put request for saving columns description
 router.put('/:id/columns', async (req, res) => {
-    const doc = await Doc.findOne({tableId: req.params.id})
+    const doc = await Docs.findOne({tableId: req.params.id})
     const searchedQuery = if_undefined(req.query.searchedQuery, '')
     const model = new Model()
     
     await model.load_model()
+
+    for (let column of doc.columns){
+        column.foreignKey = false
+        column.primaryKey = false
+    }
 
     let column
     let index
@@ -115,6 +119,7 @@ router.put('/:id/columns', async (req, res) => {
             column.primaryKey = true
         }
     }
+    
     await doc.save()
     if (searchedQuery != '')
         res.redirect(`/docs/${req.params.id}/columns?searchedQuery=${searchedQuery}`)
@@ -282,7 +287,7 @@ async function sortDocs(searchedQuery, docs){
 
     // sorting docs
     const sortedDocs = []
-    for (let value of sortable) sortedDocs.push(await Doc.findOne({tableId: value[1]}))
+    for (let value of sortable) sortedDocs.push(await Docs.findOne({tableId: value[1]}))
 
     return sortedDocs
 }
