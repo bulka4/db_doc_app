@@ -34,8 +34,6 @@ app.use(express.static('public'));
 // urldencoded allows us to get access to req.body while sending a post request
 app.use(express.urlencoded({extended: false}))
 
-// app.use(express.json())
-
 // this method override will allow us to use PUT method in 'form' html element
 app.use(methodOverride('_method'))
 // thanks to the flash we can access 'messages' variable inside ejs files
