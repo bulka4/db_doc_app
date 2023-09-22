@@ -276,7 +276,12 @@ async function sortDocs(searchedQuery, docs){
                 })
             }
         })
-        similarityScores[index] = Math.max(...similarityScores[index])
+
+        let max_score = Math.max(...similarityScores[index])
+        if (isNaN(max_score))
+            similarityScores[index] = 0
+        else
+            similarityScores[index] = max_score
     })
 
     // sort descending similarityScores
