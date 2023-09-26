@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous"> -->
+    <link rel="stylesheet" href="/bootstrap.css">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script type="module" src="/dataLineageScripts.js"></script>
+</head>
+<body>
+    <!-- section with search engine -->
+    <div class="list-group" style="width: 300px; height: 100vh; overflow: auto; display: inline-block; width: 15%">
+        <form action="/data_lineage/search" method="POST" style="margin-bottom: 20px">
+            <div style="text-align: center;">
+                <label>Type in what you are looking for</label>
+            </div>
+            <div style="text-align: center;">
+                <input type="input" name="searchBar" style="width: 100%; margin-bottom: 10px" value ="<%= searchedQuery %>">
+                <button type="submit" name="actualUrl" value="<%= actualUrl %>">Search</button>
+            </div>
+        </form>
+
+        <!-- section with data lineage documents list -->
+        <% docs.forEach(doc => { %>
+            <% if (selectedDoc == undefined) { %>
+                <div class="list-group-item list-group-item-action" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+                <% if (searchedQuery != '') { %>
+                    <a href="/data_lineage/<%= doc.dataLineageId %>?searchedQuery=<%= searchedQuery %>">
+                <% } else { %>
+                    <a href="/data_lineage/<%= doc.dataLineageId %>">
+                <% } %>
+                        <%= doc.dataLineageName %>
+                    </a>
+                </div>
+                
+            <% } else { %>
+                <% if (doc.dataLineageId == selectedDoc.dataLineageId) { %>
+                    <div class="list-group-item list-group-item-action active" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+                        <% if (searchedQuery != '') { %>
+                            <a href="/data_lineage/<%= doc.dataLineageId %>?searchedQuery=<%= searchedQuery %>" style="color: white">
+                        <% } else { %>
+                            <a href="/data_lineage/<%= doc.dataLineageId %>" style="color: white">
+                        <% } %>
+                <% } else { %>
+                    <div class="list-group-item list-group-item-action" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+                    <% if (searchedQuery != '') { %>
+                        <a href="/data_lineage/<%= doc.dataLineageId %>?searchedQuery=<%= searchedQuery %>">
+                    <% } else { %>
+                        <a href="/data_lineage/<%= doc.dataLineageId %>">
+                    <% } %>
+                <% } %>
+                            <%= doc.dataLineageName %>
+                        </a>
+                    </div>
+            <% } %>
+        <% }) %>
+    </div>
+
+    <% if (selectedDoc != undefined) { %>
+        <!-- section with a documentation -->
+        <div style="display: inline-block; vertical-align: top; margin-top:20px; margin-left:20px; width: 80%">
+            <!-- logout button -->
+            <form action="/logout?_method=DELETE", method="POST">
+                <header>
+                    <h1 style="display: inline"><%= selectedDoc.dataLineageName %></h1>
+                    <button type="submit" style="position: absolute; right: 50px">Logout</button>
+                </header>
+            </form>
+            
+            
+            <form action="/data_lineage/<%= selectedDoc.dataLineageId %>/createNode", method="POST">
+                <div style="display: inline-block; margin-top: 20px">
+                    <label style="display: block">Node name:</label>
+                    <label style="display: block">Node type:</label>
+                    <label style="display: block">Link Source:</label>
+                    <label style="display: block">Link Target:</label>
+                </div>
+                <div style="display: inline-block; margin-top: 20px">
+                    <input style="display: block" type="input" name="nodeName">
+                    <input style="display: block" type="input" name="nodeType">
+                    <input style="display: block" type="input" name="linkSource">
+                    <input style="display: block" type="input" name="linkTarget">
+                </div>
+                <button type="submit" style="position: absolute; right: 50px">Create node</button>
+            </form>
+    <% } %>
+            <div id="dataLineageGraph"></div>
+        </div>
+</body>
+</html>

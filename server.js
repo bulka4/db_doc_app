@@ -14,6 +14,7 @@ const DocsCopy = require('./models/docs_copy')
 
 const docsRouter = require('./routes/docs_route')
 const loginRouter = require('./routes/login_route')
+const dataLineageRouter = require('./routes/data_lineage_route')
 
 const flash = require('express-flash')
 const session = require('express-session')
@@ -31,8 +32,9 @@ mongoose.connect('mongodb://127.0.0.1/db_doc')
 app.set('view engine', 'ejs')
 // allow for linking .css files from 'public' folder to .ejs files
 app.use(express.static('public'));
-// urldencoded allows us to get access to req.body while sending a post request
+// express.urldencoded() and express.json() allows us to get access to req.body while sending a post request
 app.use(express.urlencoded({extended: false}))
+app.use(express.json())
 
 // this method override will allow us to use PUT method in 'form' html element
 app.use(methodOverride('_method'))
@@ -48,6 +50,7 @@ app.use(passport.initialize())
 app.use(passport.session())
 // we will be using docsRouter under /docs url
 app.use('/docs', docsRouter)
+app.use('/data_lineage', dataLineageRouter)
 app.use('/', loginRouter)
 
 app.get('/', checkNotAuthenticated, (req, res) => {
