@@ -1,5 +1,5 @@
 // check what is the if of a current displaying data lineage
-const currentDataLineageId = Number(window.location.href.split('/')[1].split('?')[0])
+const currentDataLineageId = Number(window.location.href.split('/').slice(-1)[0].split('?')[0])
 
 // get data about data lineage documents by making a http request
 fetch('/data_lineage/get_data', {
@@ -20,6 +20,7 @@ fetch('/data_lineage/get_data', {
             links = document.links
         }
     }
+
     const types = Array.from(new Set(nodes.map(d => d.type)))
 
     const color = d3.scaleOrdinal(types, d3.schemeCategory10)
@@ -71,6 +72,7 @@ fetch('/data_lineage/get_data', {
         .selectAll("g")
         .data(nodes)
         .join("g")
+        .classed('node', true)
         .call(drag(simulation))
 
     // we add rectangles as a background for a text
@@ -137,17 +139,62 @@ function drag(simulation) {
     }
 
     function dragended(event, d) {
-        // save in the database info about new position of a node
-        fetch(`/data_lineage/${currentDataLineageId}/save_data`, {
-            method: 'post',
-            body: JSON.stringify(d),
+        // check if a node was dragged over another node, that means that user wants to link them
+        // or remove existing link
+
+        // get data about nodes and links from given document by making a http request
+        fetch('/data_lineage/get_data', {
+            method: 'get',
             headers: new Headers({
                 'Content-Type': 'application/json'
             })
         })
+        .then(response => response.json())
+        .then(json => {
+            // load data for currently displayed data lineage document
+            let displayedDocument
+            for (let document of json){
+                if (document.dataLineageId == currentDataLineageId){
+                    displayedDocument = document
+                }
+            }
+            
+            // check if some node is close to the dragged node, if yes then link them
+            for (let node of displayedDocument.nodes){
+                if (node._id != d._id & Math.abs(node.x - d.x) < 50 & Math.abs(node.y - d.y) < 20){
+                    // check if nodes are already linked, if yes then remove that link
+                    // if not then create a new link between those nodes
+                    let nodesLinked = false
+                    for (let [index, link] of displayedDocument.links.entries()){
+                        if (link.source == d.value & link.target == node.value) {
+                            nodesLinked = true
+                            displayedDocument.links.splice(index, 1)
+                            break
+                        }
+                    }
+                    if (!nodesLinked) {
+                        displayedDocument.links.push({source: d.value, target: node.value})
+                    }
+                }
+            }
 
-        // check if a node was dragged over another node, that means that user wants to connect them
-        // console.log(d)
+            // update info about the node's position in a database
+            for (let [index, node] of displayedDocument.nodes.entries()){
+                if (node._id == d._id) {
+                    displayedDocument.nodes[index] = d
+            }
+
+            // save in the database info about new position of a node
+            fetch(`/data_lineage/${currentDataLineageId}/save_data`, {
+                method: 'post',
+                body: JSON.stringify(displayedDocument),
+                headers: new Headers({
+                    'Content-Type': 'application/json'
+                })
+            })
+
+            // location.reload()
+        })
     }
 
     return d3.drag()

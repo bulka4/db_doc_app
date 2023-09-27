@@ -33,17 +33,17 @@ router.get('/:id', checkAuthenticated, async (req, res) => {
     })
 })
 
-// post request for saving data about new positions of nodes after dragging them
+// post request for saving data about new positions of nodes and links after dragging them
 router.post('/:id/save_data', async (req, res) => {
     const dataLineageId = req.params.id
     const doc = await Docs.findOne({dataLineageId: dataLineageId})
     
-    const selectedNode = req.body
-    for (let key of ['index', 'vy', 'vx', 'bbox']) delete selectedNode[key]
+    const displayedDocument = req.body
+    for (let node of displayedDocument.nodes)
+        for (let key of ['index', 'vy', 'vx', 'bbox']) delete node[key]
 
-    for (let [index, node] of doc.nodes.entries()){
-        if (node.value == selectedNode.value) doc.nodes[index] = selectedNode
-    }
+    doc.nodes = displayedDocument.nodes
+    doc.links = displayedDocument.links
 
     await doc.save()
 
@@ -56,15 +56,10 @@ router.post('/:id/createNode', async (req, res) => {
         value: req.body.nodeName,
         type: req.body.nodeType
     }
-    const link = {
-        source: req.body.linkSource,
-        target: req.body.linkTarget
-    }
     const dataLineageId = req.params.id
     const doc = await Docs.findOne({dataLineageId: dataLineageId})
 
     doc.nodes.push(node)
-    doc.links.push(link)
     
     await doc.save()
 
