@@ -34,36 +34,68 @@ router.get('/:id', checkAuthenticated, async (req, res) => {
 })
 
 // post request for saving data about new positions of nodes and links after dragging them
-router.post('/:id/save_data', async (req, res) => {
-    const dataLineageId = req.params.id
-    const doc = await Docs.findOne({dataLineageId: dataLineageId})
-    
-    const displayedDocument = req.body
-    for (let node of displayedDocument.nodes)
-        for (let key of ['index', 'vy', 'vx', 'bbox']) delete node[key]
+router.post('/save_data', async (req, res) => {
+    const node = req.body
 
-    doc.nodes = displayedDocument.nodes
-    doc.links = displayedDocument.links
+    await Docs.updateOne(
+        {
+            'nodes._id': node._id
+        }, 
+        {
+            'nodes.$': node
+        }
+    )
 
-    await doc.save()
+    res.redirect('back')
+})
 
-    res.redirect(`/data_lineage/${dataLineageId}`)
+router.post('/delete_node', async (req, res) => {
+    const node = req.body
+
+    // remove the node
+    await Docs.updateOne(
+        {
+            'nodes._id': node._id
+        }, 
+        {
+            $pull: {nodes: {_id: node._id}}
+        }
+    )
+
+    // remove links to this node
+    await Docs.updateMany(
+        {
+            'nodes.linkedTo': node.value
+        },
+        {
+            $pull: {'nodes.$[].linkedTo': node.value}
+        }
+    )
+
+    res.redirect('back')
 })
 
 // post request for creating a new node
 router.post('/:id/createNode', async (req, res) => {
     const node = {
         value: req.body.nodeName,
-        type: req.body.nodeType
+        type: req.body.nodeType,
+        linkedTo: [],
+        x: 1.38,
+        y: -15.75
     }
     const dataLineageId = req.params.id
-    const doc = await Docs.findOne({dataLineageId: dataLineageId})
 
-    doc.nodes.push(node)
-    
-    await doc.save()
+    await Docs.updateOne(
+        {
+            dataLineageId: dataLineageId
+        },
+        {
+            $push: {nodes: node}
+        }
+    )
 
-    res.redirect(`/data_lineage/${dataLineageId}`)
+    res.redirect('back')
 })
 
 router.post('/search', async (req, res) => {

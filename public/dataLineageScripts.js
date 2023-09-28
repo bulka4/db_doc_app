@@ -17,7 +17,11 @@ fetch('/data_lineage/get_data', {
     for (let document of json){
         if (document.dataLineageId == currentDataLineageId){
             nodes = document.nodes
-            links = document.links
+            for (let node1 of nodes){
+                for (let node2 of nodes){
+                    if (node1.linkedTo.includes(node2.value)) links.push({source: node1.value, target: node2.value})
+                }
+            }
         }
     }
 
@@ -81,13 +85,34 @@ fetch('/data_lineage/get_data', {
             .attr("fill", d => color(d.type))
             .attr("x", 5)
             .attr("y", "-0.9em")
+            .classed('background', true)
 
+    // adding text to the nodes
     node
         .append("text")
             .attr("x", 8)
             .attr("y", "0.3em")
             .style("font-size", "1.5em")
         .text(d => d.value)
+        .classed('nodeText', true)
+
+    // adding the 'X' for the buttons for removing nodes
+    node
+        .append('text')
+            .attr("y", "0.3em")
+            .style("font-size", "1.5em")
+        .text('X')
+        .classed('closeBtnText', true)
+
+    // adding a rectangle as a button for removing nodes
+    node
+        .append("rect")
+            .attr("y", "-0.8em")
+            .attr('width', 20)
+            .attr('fill', 'transparent')
+            .attr('stroke', 'black')
+            .attr('stroke-width', '1px')
+        .classed('closeBtn', true)
 
     // change position of nodes and shape of arrows connecting them when user is dragging nodes
     simulation.on("tick", () => {
@@ -103,25 +128,45 @@ fetch('/data_lineage/get_data', {
     // add to the nodes data attribute called 'bbox' with info about the text element size 
     // so we can make rectangles have the same size
     node
-        .selectAll("text")
+        .selectAll(".nodeText")
         .each(function(d) { 
             d.bbox = this.getBBox()
         })
 
     // resize rectangles so they match the text size
     node
-        .selectAll("rect")
-        .attr('width', d => 1.1 * d.bbox.width)
-        .attr('height', d => 1.1 * d.bbox.height)
+        .selectAll(".background")
+            .attr('width', d => 1.1 * d.bbox.width)
+            .attr('height', d => 1.1 * d.bbox.height)
+
+    // resize a button for removing node and add event listener for removing a node
+    node
+        .selectAll(".closeBtn")
+            .attr("x", d => d.bbox.width + 10)
+            .attr('height', d => d.bbox.height)
+        .on('click', (event, data) => {
+            fetch(`/data_lineage/delete_node`, {
+                method: 'post',
+                body: JSON.stringify(data),
+                headers: new Headers({
+                    'Content-Type': 'application/json'
+                })
+            })
+        })
+        
+    node
+        .selectAll('.closeBtnText')
+            .attr("x", d => d.bbox.width + 14)
 })
 
 
+
+
 // function for changing arrows shape when user is dragging nodes
-// as 'd' argument we will pass our 'links' variable
 function linkArc(d) {
     const r = Math.hypot(d.target.x - d.source.x, d.target.y - d.source.y)
     return `
-        M${d.source.x + d.source.bbox.width},${d.source.y}
+        M${d.source.x + d.source.bbox.width + 30},${d.source.y}
         A${r},${r} 0 0,1 ${d.target.x},${d.target.y}
     `
 }
@@ -164,36 +209,29 @@ function drag(simulation) {
                 if (node._id != d._id & Math.abs(node.x - d.x) < 50 & Math.abs(node.y - d.y) < 20){
                     // check if nodes are already linked, if yes then remove that link
                     // if not then create a new link between those nodes
-                    let nodesLinked = false
-                    for (let [index, link] of displayedDocument.links.entries()){
-                        if (link.source == d.value & link.target == node.value) {
-                            nodesLinked = true
-                            displayedDocument.links.splice(index, 1)
-                            break
+                    if (d.linkedTo.includes(node.value)) d.linkedTo = d.linkedTo.filter((x) => {return x != node.value})
+                    else if (!node.linkedTo.includes(d.value)) d.linkedTo.push(node.value)
+
+                    // move the dragged node back to his old position
+                    for (let [index, node] of displayedDocument.nodes.entries()){
+                        if (node._id == d._id) {
+                            d.x = displayedDocument.nodes[index].x
+                            d.y = displayedDocument.nodes[index].y
                         }
-                    }
-                    if (!nodesLinked) {
-                        displayedDocument.links.push({source: d.value, target: node.value})
                     }
                 }
             }
 
             // update info about the node's position in a database
-            for (let [index, node] of displayedDocument.nodes.entries()){
-                if (node._id == d._id) {
-                    displayedDocument.nodes[index] = d
-            }
-
-            // save in the database info about new position of a node
-            fetch(`/data_lineage/${currentDataLineageId}/save_data`, {
-                method: 'post',
-                body: JSON.stringify(displayedDocument),
-                headers: new Headers({
-                    'Content-Type': 'application/json'
+            fetch(`/data_lineage/save_data`, {
+                    method: 'post',
+                    body: JSON.stringify(d),
+                    headers: new Headers({
+                        'Content-Type': 'application/json'
+                    })
                 })
-            })
 
-            // location.reload()
+            location.reload()
         })
     }
 

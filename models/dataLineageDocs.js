@@ -10,6 +10,7 @@ const nodeSchema = new mongoose.Schema(
             type: String,
             required: true
         },
+        linkedTo: Array,
         x: Number,
         y: Number
     }
