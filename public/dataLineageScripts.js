@@ -1,4 +1,4 @@
-// check what is the if of a current displaying data lineage
+// check what is the id of the currently displaying data lineage document
 const currentDataLineageId = Number(window.location.href.split('/').slice(-1)[0].split('?')[0])
 
 // get data about data lineage documents by making a http request
@@ -14,8 +14,10 @@ fetch('/data_lineage/get_data', {
     const height = 600
     let links = []
     let nodes = []
+    let currentDocument
     for (let document of json){
         if (document.dataLineageId == currentDataLineageId){
+            currentDocument = document
             nodes = document.nodes
             for (let node1 of nodes){
                 for (let node2 of nodes){
@@ -27,12 +29,9 @@ fetch('/data_lineage/get_data', {
 
     const types = Array.from(new Set(nodes.map(d => d.type)))
 
-    const color = d3.scaleOrdinal(types, d3.schemeCategory10)
-
     const simulation = d3
         .forceSimulation(nodes)
         .force("link", d3.forceLink(links).id(d => d.value).strength(0))
-        .force("charge", d3.forceManyBody().strength(0))
 
     const svg = d3
         .create("svg")
@@ -82,7 +81,11 @@ fetch('/data_lineage/get_data', {
     // we add rectangles as a background for a text
     node
         .append("rect")
-            .attr("fill", d => color(d.type))
+            .attr("fill", d => {
+                if (d.type == 'system') return 'blue'
+                else if (d.type == 'table') return 'red'
+                else if (d.type == 'script') return 'green'
+            })
             .attr("x", 5)
             .attr("y", "-0.9em")
             .classed('background', true)
@@ -114,6 +117,24 @@ fetch('/data_lineage/get_data', {
             .attr('stroke-width', '1px')
         .classed('closeBtn', true)
 
+    // adding 'i' for buttons for showing more info about nodes
+    node
+        .append('text')
+            .attr("y", "0.3em")
+            .style("font-size", "1.5em")
+        .text('i')
+        .classed('infoBtnText', true)
+
+    // adding a rectangle as a button for showing more info about nodes
+    node
+        .append("rect")
+            .attr("y", "-0.8em")
+            .attr('width', 20)
+            .attr('fill', 'transparent')
+            .attr('stroke', 'black')
+            .attr('stroke-width', '1px')
+        .classed('infoBtn', true)
+
     // change position of nodes and shape of arrows connecting them when user is dragging nodes
     simulation.on("tick", () => {
         link.attr("d", linkArc)
@@ -121,7 +142,7 @@ fetch('/data_lineage/get_data', {
     })
 
     // add the graph with nodes to the website
-    const graph = Object.assign(svg.node(), {scales: {color}})
+    const graph = Object.assign(svg.node())
     const dataLineageGraph = document.querySelector('#dataLineageGraph')
     dataLineageGraph.appendChild(graph)
 
@@ -139,7 +160,7 @@ fetch('/data_lineage/get_data', {
             .attr('width', d => 1.1 * d.bbox.width)
             .attr('height', d => 1.1 * d.bbox.height)
 
-    // resize a button for removing node and add event listener for removing a node
+    // resize and change position of a button for removing node and add event listener for removing a node
     node
         .selectAll(".closeBtn")
             .attr("x", d => d.bbox.width + 10)
@@ -153,10 +174,32 @@ fetch('/data_lineage/get_data', {
                 })
             })
         })
-        
+    
+    // resize and change position of a 'X' in a button for removing node
     node
         .selectAll('.closeBtnText')
             .attr("x", d => d.bbox.width + 14)
+
+    // resize and change position of a button for showing more info about node
+    // and add event listener for displaying a pop up window with more info about node
+    node
+        .selectAll(".infoBtn")
+            .attr("x", d => d.bbox.width + 30)
+            .attr('height', d => d.bbox.height)
+        .on('click', (event, nodeData) => {
+            let popUpWindow
+            if (nodeData.type == 'table'){
+                popUpWindow = document.querySelector('#tableAdditionalInfo')
+                popUpWindow.classList.add('show')
+                popUpWindow.style.overflowY = 'auto'
+                popUpWindow.style.display = 'block'
+            }
+        })
+    
+    // resize and change position of a 'i' in a button for showing more info about nodes
+    node
+        .selectAll('.infoBtnText')
+            .attr("x", d => d.bbox.width + 38)
 })
 
 
@@ -166,7 +209,7 @@ fetch('/data_lineage/get_data', {
 function linkArc(d) {
     const r = Math.hypot(d.target.x - d.source.x, d.target.y - d.source.y)
     return `
-        M${d.source.x + d.source.bbox.width + 30},${d.source.y}
+        M${d.source.x + d.source.bbox.width + 50},${d.source.y}
         A${r},${r} 0 0,1 ${d.target.x},${d.target.y}
     `
 }
@@ -231,7 +274,7 @@ function drag(simulation) {
                     })
                 })
 
-            location.reload()
+            // location.reload()
         })
     }
 
