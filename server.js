@@ -59,7 +59,8 @@ app.get('/', checkNotAuthenticated, (req, res) => {
 
 // we want to use port 80 because then we don't need to write a port number in the url,
 // so instead of writting url 'db_doc.com:port_number' we just need to write 'db_doc.com'
-app.listen(80)
+// app.listen(80)
+app.listen(8080)
 
 // make a copy of the data in MongoDB every 24h in case we accidentally loose the oryginal data
 copyData(24)
