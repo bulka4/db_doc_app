@@ -16,19 +16,6 @@ const nodeSchema = new mongoose.Schema(
     }
 )
 
-const linkSchema = new mongoose.Schema(
-    {
-        source: {
-            type: String,
-            required: true
-        },
-        target: {
-            type: String,
-            required: true
-        }
-    }
-)
-
 const dataLineageSchema = new mongoose.Schema(
     {
         dataLineageId: {
@@ -39,8 +26,7 @@ const dataLineageSchema = new mongoose.Schema(
             type: String,
             required: true
         },
-        nodes: [nodeSchema],
-        links: [linkSchema]
+        nodes: [nodeSchema]
     },
     {collection: 'dataLineageDocs'}
 )

@@ -17,6 +17,7 @@ class sql_connector {
     }
 
     async read_query(query){
+        if (this.pool == undefined) await this.createPool()
         const result = await this.pool.request().query(query)
         return result
     }
