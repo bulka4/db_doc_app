@@ -5,13 +5,71 @@ const Docs = require('../models/dataLineageDocs')
 const mongoose = require('mongoose')
 mongoose.connect('mongodb://127.0.0.1/db_doc')
 
-createDataLineageDocs(['table_00'], 'lineage_test')
-console.log('done')
+test()
 
-async function createDataLineageDocs(final_tables, data_lineage_name){
-    `This function creates a data lineage document which shows how given set of tables called final_tables
+async function test(){
+    // procedures_in_out[i][0] is an input table for the i-th stored procedure procedures_in_out[i][1] which
+    // creates an output table called procedures_in_out[i][2]
+    // const procedures_in_out = await proceduresInOut()
+
+    const procedures_in_out = [
+        ['table_10', 'proc_00', 'table_00'],
+        ['table_11', 'proc_00', 'table_00'],
+        ['table_12', 'proc_00', 'table_00'],
+        ['table_13', 'proc_00', 'table_00'],
+        
+        ['table_20', 'proc_10', 'table_10'],
+        ['table_21', 'proc_10', 'table_10'],
+        ['table_22', 'proc_10', 'table_10'],
+        ['table_23', 'proc_10', 'table_10'],
+
+        ['table_24', 'proc_11', 'table_11'],
+        ['table_25', 'proc_11', 'table_11'],
+        ['table_26', 'proc_11', 'table_11'],
+        ['table_27', 'proc_11', 'table_11'],
+        
+        ['table_30', 'proc_20', 'table_21'],
+        ['table_31', 'proc_20', 'table_21'],
+
+        ['table_32', 'proc_21', 'table_20'],
+        ['table_33', 'proc_21', 'table_20'],
+
+        ['table_14', 'proc_01', 'table_01'],
+        ['table_15', 'proc_01', 'table_01'],
+        ['table_16', 'proc_01', 'table_01'],
+
+        ['table_28', 'proc_12', 'table_14'],
+        ['table_29', 'proc_12', 'table_14'],
+
+        ['table_210', 'proc_13', 'table_16']
+    ]
+
+    // final tables are tables which are not being an input for any stored procedure
+    const final_tables = []
+    for (let row of procedures_in_out){
+        let table = row[2]
+        let isFinalTable = true
+        for (let row of procedures_in_out){
+            if (row[0] == table) {
+                isFinalTable = false
+                break
+            }
+        }
+
+        if (isFinalTable & !final_tables.includes(table)) final_tables.push(table)
+    }
+
+    for (let final_table of final_tables){
+        createDataLineageDocs(final_table, final_table, procedures_in_out)
+    }
+
+    console.log('done')
+}
+
+async function createDataLineageDocs(final_table, data_lineage_name, procedures_in_out){
+    `This function creates a data lineage document which shows how a given table called final_table
     is being created. This document is being saved in the models/dataLineageDocs.js data model and it can be used by 
-    routes/data_lineage_route.js file for creating data lineage visualizations`
+    routes/data_lineage_route.js and views/dataLineage.ejs files for creating data lineage visualizations`
 
     const data_lineage_doc = {
         dataLineageId: await Docs.count({}) + 1,
@@ -19,201 +77,326 @@ async function createDataLineageDocs(final_tables, data_lineage_name){
         nodes: []
     }
 
-    // const procedures_in_out = await proceduresInOut()
-    const procedures_in_out = [
-        ['table_10', 'proc_00', 'table_00'],
-        ['table_11', 'proc_00', 'table_00'],
-        
-        ['table_20', 'proc_10', 'table_10'],
-        ['table_21', 'proc_10', 'table_10'],
-        
-        ['table_22', 'proc_11', 'table_11'],
-        ['table_23', 'proc_11', 'table_11'],
-        
-        ['table_30', 'proc_20', 'table_21'],
-        ['table_31', 'proc_20', 'table_21']
-    ]
-
-    for (let [i, final_table] of final_tables.entries()){
-        createNodes(data_lineage_doc, procedures_in_out, final_table)
-        replaceNodes(data_lineage_doc)
-    }
+    createNodes(data_lineage_doc, procedures_in_out, final_table)
+    replaceNodes(data_lineage_doc)
 
     await Docs.insertMany(data_lineage_doc)
 }
 
 function replaceNodes(data_lineage_doc){
-        `This function changes positions of nodes`
+    const nodes_levels = createNodesLevels(data_lineage_doc)
+    const max_x_coordinate = 370
+    const max_y_coordinate = -240
 
-        const nodes_levels = createNodesLevels(data_lineage_doc)
+    // the first iteration
+    let iteration = 0
+    let input_tables_lists = nodes_levels[iteration * 2 + 2]
+    let procedures_nodes = nodes_levels[iteration * 2 + 1]
+    // list of table nodes to which procedures from the procedures_nodes are linked to
+    let output_table_nodes = []
+    for (let procedure_node of procedures_nodes){
+        output_table_nodes.push(findOutputNode(procedure_node, data_lineage_doc))
+    }
+    
+    // set up positions of input tables
+    let no_previous_input_tables = 0
+    for (let [i, input_tables_list] of input_tables_lists.entries()){
+        for (let [j, input_table_node] of input_tables_list.entries()){
+            input_table_node.x = max_x_coordinate - 300 * (iteration + 1)
+            input_table_node.y = max_y_coordinate + (j * 40) + (no_previous_input_tables * 40)
+        }
+        no_previous_input_tables = input_tables_list.length
+    }
 
-        let max_no_nodes = nodes_levels[0].length
-        nodes_levels.forEach((x) => {
-            if (x.length > max_no_nodes) max_no_nodes = x.length
-        })
-        
-        for (let [i, level] of nodes_levels.entries()){
-            if (i == 0) {
-                level[0].x = 340
-                level[0].y = -270 + (max_no_nodes - level.length) * 40 / 2
-            } else if (i == 1) {
-                level[0].x = 200
-                level[0].y = -270 + (max_no_nodes - level.length) * 40 / 2
-            } else {
-                // check if this is a level with tables
-                if (i % 2 == 0){
-                    for (let [j, table_node] of level.entries()){
-                        table_node.y = -270 + j * 40 + (max_no_nodes - level.length) * 40 / 2
-                        table_node.x = 340 - i * 150
-                    }
-                } else {
-                    for (let [j, proc_node] of level.entries()){
-                        proc_node.y = -270 + j * 40 + (max_no_nodes - level.length) * 40 / 2
-                        proc_node.x = 340 - i * 150
-                    }
+    // set up position of procedures and output tables
+    no_previous_input_tables = 0
+    for (let [i, procedure_node] of procedures_nodes.entries()){
+        procedure_node.x = max_x_coordinate + 150 - 300 * (iteration + 1)
+        procedure_node.y = max_y_coordinate + (input_tables_lists[i].length - 1) * 40 / 2 + (no_previous_input_tables * 40)
+
+        output_table_nodes[i].x = max_x_coordinate - 300 * iteration
+        output_table_nodes[i].y = max_y_coordinate + (input_tables_lists[i].length - 1) * 40 / 2 + (no_previous_input_tables * 40)
+
+        no_previous_input_tables = input_tables_lists[i].length
+    }
+
+    iteration += 1
+
+
+
+    // the second iteration
+    input_tables_lists = nodes_levels[iteration * 2 + 2]
+    procedures_nodes = nodes_levels[iteration * 2 + 1]
+    // list of table nodes to which procedures from the procedures_nodes are linked to
+    output_table_nodes = []
+    for (let procedure_node of procedures_nodes){
+        output_table_nodes.push(findOutputNode(procedure_node, data_lineage_doc))
+    }
+
+    // set up positions of input tables
+    no_previous_input_tables = 0
+    for (let [i, input_tables_list] of input_tables_lists.entries()){
+        for (let [j, input_table_node] of input_tables_list.entries()){
+            input_table_node.x = max_x_coordinate - 300 * (iteration + 1)
+            input_table_node.y = max_y_coordinate + (j * 40) + (no_previous_input_tables * 40)
+        }
+        no_previous_input_tables = input_tables_list.length
+    }
+
+    // set up position of procedures and output tables
+    no_previous_input_tables = 0
+    for (let [i, procedure_node] of procedures_nodes.entries()){
+        procedure_node.x = max_x_coordinate + 150 - 300 * (iteration + 1)
+        procedure_node.y = max_y_coordinate + (input_tables_lists[i].length - 1) * 40 / 2 + (no_previous_input_tables * 40)
+
+        output_table_nodes[i].x = max_x_coordinate - 300 * iteration
+        output_table_nodes[i].y = max_y_coordinate + (input_tables_lists[i].length - 1) * 40 / 2 + (no_previous_input_tables * 40)
+
+        no_previous_input_tables = input_tables_lists[i].length
+    }
+
+    // modify positions of nodes which were set up in previous iterations
+    for (level_number of Array.from(Array(iteration * 2 + 1).keys(), (x) => (iteration * 2) - x)){
+        // check if this is a level with table nodes
+        if (level_number % 2 == 0){
+            // at first we are changing positions of table nodes which are output from procedures
+            for (let table_nodes_list of nodes_levels[level_number]){
+                for (let table_node of table_nodes_list){
+                    let input_nodes = findInputNodes(table_node, data_lineage_doc)
+                    if (input_nodes.length > 0) table_node.y = input_nodes[0].y
                 }
             }
         }
+    }
 }
 
-function createNodesLevels(data_lineage_doc, nodes_levels = [], nodes_levels_values = []){
+
+function createNodesLevels(data_lineage_doc, nodes_levels = []){
     `This function is used in the replaceNodes function.
     
     It creates a list of lists of nodes for each level which is called nodes_levels. One level is a 
     vertical set of nodes in a graph on a website.
 
-    nodes_levels[0] is a node with the final table (at the end, on the right)
-    nodels_levels[1] is the final stored procedure producing the final table
-    nodes_levels[2] is a list of nodes with tables which are input for the final procedure
+    nodes_levels[i][0] is a list of tables which are inputs for the nodes_levels[i - 1][0] procedure
+    nodes_levels[i][1] is a list of tables which are inputs for the nodes_levels[i - 1][1] procedure
     and so on`
 
     if (nodes_levels.length == 0){
         for (let node of data_lineage_doc.nodes){
             if (node.linkedTo.length == 0){
-                nodes_levels = [[node]]
-                nodes_levels_values = [[node.value]]
+                nodes_levels = [[[node]]]
             }
         }
-        createNodesLevels(data_lineage_doc, nodes_levels, nodes_levels_values)
+        createNodesLevels(data_lineage_doc, nodes_levels)
     }
     else {
-        const new_level = []
-        nodes_levels_values.push([])
-        for (let node of data_lineage_doc.nodes){
-            if (node.linkedTo.filter((x) => nodes_levels_values.slice(-2)[0].includes(x)).length > 0){
-                new_level.push(node)
-                nodes_levels_values.slice(-1)[0].push(node.value)
+        // check if now is a level with tables
+        if (nodes_levels.length % 2 == 0){
+            let previous_level_procedures = nodes_levels.slice(-1)[0]
+            const new_level = []
+
+            for (let procedure of previous_level_procedures){
+                let linked_nodes = findInputNodes(procedure, data_lineage_doc)
+                new_level.push(linked_nodes)
+            }
+
+            nodes_levels.push(new_level)
+            createNodesLevels(data_lineage_doc, nodes_levels)
+        } else {
+            //  this is a level with procedures
+            const new_level = []
+            for (let table_node of nodes_levels.slice(-1)[0].flat()){
+                let linked_nodes = findInputNodes(table_node, data_lineage_doc)
+                if (linked_nodes.length > 0) new_level.push(linked_nodes[0])
+            }
+
+            if (new_level.length > 0){
+                nodes_levels.push(new_level)
+                createNodesLevels(data_lineage_doc, nodes_levels)
             }
         }
-
-        if (new_level.length > 0) {
-            nodes_levels.push(new_level)
-            createNodesLevels(data_lineage_doc, nodes_levels, nodes_levels_values)
-        } 
     }
 
     return nodes_levels
 }
 
-// function replaceNodes(data_lineage_doc, last_replaced_nodes = []){
-//     `This function changes positions of nodes`
+function findOutputNode(node, data_lineage_doc){
+    `This function finds a node to which a given node is linked`
 
-//     let nodes_to_replace = []
-//     let last_replaced_nodes_values = []
+    for (let node2 of data_lineage_doc.nodes){
+        if (node.linkedTo.includes(node2.value)) return node2
+    }
+}
 
-//     if (last_replaced_nodes.length == 0){
-//         // replace the final table
+function findInputNodes(node, data_lineage_doc){
+    `This function finds all nodes which are linked to a given node`
+    
+    const linked_nodes = []
+    for (let node2 of data_lineage_doc.nodes){
+        if (node2.linkedTo.includes(node.value)) linked_nodes.push(node2)
+    }
+
+    return linked_nodes
+}
+
+// function replaceNodes(data_lineage_doc){
+//     `This function changes x and y coordinates of nodes inside of data_lineage_doc object`
+
+//     // initial position of nodes
+//     const nodes_levels = createNodesLevels(data_lineage_doc)
+//     for (let [i, level] of nodes_levels.entries()){
+//         for (let [j, node] of level.entries()){
+//             node.x = 370 - i * 150
+//             node.y = -240 + j * 40
+//         }
+//     }
+
+//     for (let i of Array(2).keys()){
+//         modifyProcedureNodesPositions(nodes_levels, data_lineage_doc)
+//         modifyTableNodesPositions(nodes_levels, data_lineage_doc)
+//     }
+// }
+
+// function modifyProcedureNodesPositions(nodes_levels, data_lineage_doc){
+//     for (let [i, level] of nodes_levels.entries()){
+//         // check if this is a level with procedures
+//         if (i % 2 != 0){
+//             for (let procedure_node of level){
+//                 input_tables = findInputTables(procedure_node, data_lineage_doc)
+                
+//                 let max_input_tables_y = input_tables[0].y
+//                 let min_input_tables_y = input_tables[0].y
+//                 input_tables.forEach((input_table_node) => {
+//                     if (input_table_node.y > max_input_tables_y) max_input_tables_y = input_table_node.y
+//                     if (input_table_node.y < min_input_tables_y) min_input_tables_y = input_table_node.y
+//                 })
+
+//                 // procedure_node.y = max_input_tables_y - (input_tables.length - 1) * 40 / 2 - 20
+//                 procedure_node.y = max_input_tables_y - (max_input_tables_y - min_input_tables_y) / 2
+//             }
+//         }
+//     }
+// }
+
+// function modifyTableNodesPositions(nodes_levels, data_lineage_doc){
+//     for (let [i, level] of nodes_levels.entries()){
+//         // check if this is a level with tables
+//         if (i % 2 == 0){
+//             // fixing positions of table nodes which are being created by some stored procedure.
+//             // They should be located next to the procedures which are creating them.
+//             let fixed_nodes = []
+//             for (let table_node of level){
+//                 let source_procedure = findSourceProcedure(table_node, data_lineage_doc)
+//                 if (source_procedure != undefined){
+//                     table_node.y = source_procedure.y
+//                     fixed_nodes.push(table_node.value)
+//                 }
+//             }
+
+//             // fixing positions of table nodes which are not being created by any stored procedure
+//             for (let table_node of level){
+//                 if (fixed_nodes.includes(table_node.value)) continue
+
+//                 let closest_node = closestNode(table_node, data_lineage_doc)
+//                 if (Math.abs(closest_node.y - table_node.y) < 40) table_node.y = closest_node.y + 40
+//             }
+//         }
+//     }
+// }
+
+// function closestNode(node, data_lineage_doc){
+//     `This function finds the closest node in the same level 
+//     (nodes are in the same level if they have the same x coordinate)`
+
+//     const level_nodes = []
+//     for (let node2 of data_lineage_doc.nodes){
+//         if (node2.x == node.x) level_nodes.push(node2)
+//     }
+
+//     let closest_node = level_nodes[0]
+//     for (let node2 of level_nodes){
+//         if (Math.abs(node.y - node2.y) < Math.abs(closest_node.y - node2.y)) closest_node = node2
+//     }
+
+//     return closest_node
+// }
+
+// function findSourceProcedure(table_node, data_lineage_doc){
+//     `Finding a procedure node which creates a given table node`
+
+//     for (let node of data_lineage_doc.nodes){
+//         if (node.linkedTo.includes(table_node.value)) return node
+//     }
+// }
+
+// function findInputTables(procedure_node, data_lineage_doc){
+//     `Finding input tables (nodes) for a procedure`
+
+//     const input_tables = []
+//     for (let node of data_lineage_doc.nodes){
+//         if (node.linkedTo.includes(procedure_node.value)) input_tables.push(node)
+//     }
+
+//     return input_tables
+// }
+
+// function createNodesLevels(data_lineage_doc, nodes_levels = [], nodes_levels_values = []){
+//     `This function is used in the replaceNodes function.
+    
+//     It creates a list of lists of nodes for each level which is called nodes_levels. One level is a 
+//     vertical set of nodes in a graph on a website.
+
+//     nodes_levels[0] is a node with the final table (at the end, on the right)
+//     nodels_levels[1] is the final stored procedure producing the final table
+//     nodes_levels[2] is a list of nodes with tables which are input for the final procedure
+//     and so on`
+
+//     if (nodes_levels.length == 0){
 //         for (let node of data_lineage_doc.nodes){
 //             if (node.linkedTo.length == 0){
-//                 node.x = 340
-//                 node.y = -270
-//                 last_replaced_nodes.push(node)
-//                 last_replaced_nodes_values.push(node.value)
+//                 nodes_levels = [[node]]
+//                 nodes_levels_values = [[node.value]]
 //             }
 //         }
-
-//         // replace the procedure which creates the final table
-//         for (let node of data_lineage_doc.nodes){
-//             if (node.linkedTo.includes(last_replaced_nodes_values[0])){
-//                 node.x = 200
-//                 node.y = -270
-//                 last_replaced_nodes = [node]
-//                 last_replaced_nodes_values = [node.value]
-//                 break
-//             }
-//         }
-
-//         // replace tables which are an input for the procedure
-//         for (let node of data_lineage_doc.nodes){
-//             if (node.linkedTo.includes(last_replaced_nodes_values[0])){
-//                 nodes_to_replace.push(node)
-//             }
-//         }
-
-//         if (nodes_to_replace.length == 0) return
-
-//         last_replaced_nodes = []
-//         for (let [i, node] of nodes_to_replace.entries()){
-//             node.x = 50
-//             node.y = -270 + i * 40
-//             last_replaced_nodes.push(node)
-//         }
-
-//         replaceNodes(data_lineage_doc, last_replaced_nodes)
+//         createNodesLevels(data_lineage_doc, nodes_levels, nodes_levels_values)
 //     }
 //     else {
-//         last_replaced_nodes.forEach((node) => {last_replaced_nodes_values.push(node.value)})
-
+//         const new_level = []
+//         nodes_levels_values.push([])
 //         for (let node of data_lineage_doc.nodes){
-//             if (node.linkedTo.filter((x) => last_replaced_nodes_values.includes(x)).length > 0){
-//                 nodes_to_replace.push(node)
+//             if (node.linkedTo.filter((x) => nodes_levels_values.slice(-2)[0].includes(x)).length > 0){
+//                 new_level.push(node)
+//                 nodes_levels_values.slice(-1)[0].push(node.value)
 //             }
 //         }
 
-//         if (nodes_to_replace.length == 0) return
-
-//         let last_replaced_nodes_min_y = last_replaced_nodes[0].y
-//         for (let node of last_replaced_nodes){
-//             if (node.y < last_replaced_nodes_min_y) last_replaced_nodes_min_y = node.y
-//         }
-
-//         for (let [i, node] of nodes_to_replace.entries()){
-//             node.x = last_replaced_nodes[0].x - 150
-//             node.y = last_replaced_nodes_min_y + i * 40
-//         }
-
-//         replaceNodes(data_lineage_doc, nodes_to_replace)
+//         if (new_level.length > 0) {
+//             nodes_levels.push(new_level)
+//             createNodesLevels(data_lineage_doc, nodes_levels, nodes_levels_values)
+//         } 
 //     }
+
+//     return nodes_levels
 // }
 
 function createNodes(
     data_lineage_doc, 
     procedures_in_out, 
-    table, 
-    x = 340, 
-    y = 0, 
+    table,
     procedure = undefined
 ){
-    `This function creates nodes in the data_lineage_doc object (from the models/dataLineageDocs model) for 
-    the final table, stored procedure which creates that final table and for tables which are used as an 
-    input for that stored procedure
+    `This function creates nodes in the data_lineage_doc object (from the models/dataLineageDocs model)
+    for stored procedures and source tables which are used to create the table indicated by the 'table' argument.
     
     procedure argument indicates a name of a procedure for which a given table in an input
     
-    procedures_in_out argument is an output from the proceduresInOut function
-    
-    table argument is a table for which this function will find stored procedures which produce it and source tables
-    which are an input for that store procedure
-    
-    x and y arguments are used for selecting coordinates where node will be placed on the website`
+    procedures_in_out argument is an output from the proceduresInOut function`
 
     if (procedure == undefined){
         data_lineage_doc.nodes.push({
             value: table,
             type: 'table',
-            linkedTo: [],
-            x: x,
-            y: y
+            linkedTo: []
         })
     }
 
@@ -224,9 +407,7 @@ function createNodes(
             data_lineage_doc.nodes.push({
                 value: procedure_name,
                 type: 'procedure',
-                linkedTo: [table],
-                x: x - 150,
-                y: y
+                linkedTo: [table]
             })
             break
         }
@@ -240,28 +421,19 @@ function createNodes(
 
     if (input_tables.length == 0) return 
 
-    // height of a column of nodes which are an input for the stored procedure
-    let height = (input_tables.length - 1) * 40
     for (let [i, input_table] of input_tables.entries()){
         data_lineage_doc.nodes.push({
             value: input_table,
             type: 'table',
-            linkedTo: [procedure_name],
-            x: x - 300,
-            y: y - (height / 2) + (i * 40)
+            linkedTo: [procedure_name]
         })
     }
 
-    x -= 300
-    y -= (height / 2)
     for (let [i, input_table] of input_tables.entries()){
-        y += (i * 40)
         createNodes(
             data_lineage_doc, 
             procedures_in_out, 
-            input_table, 
-            x = x, 
-            y = y, 
+            input_table,
             procedure_name
         )
     }
