@@ -14,7 +14,8 @@ router.get('/register', checkNotAuthenticated, async (req, res) => {
 
 // post request for loging in
 router.post('/login', checkNotAuthenticated, passport.authenticate('local', {
-    successRedirect: '/docs/0/table',
+    // successRedirect: '/docs/0/table',
+    successRedirect: '/data_lineage/3',
     failureRedirect: '/login',
     failureFlash: true
 }))
