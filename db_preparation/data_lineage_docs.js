@@ -28,10 +28,10 @@ async function test(){
         ['table_21', 'proc_10', 'table_10'],
         ['table_22', 'proc_10', 'table_10'],
         ['table_23', 'proc_10', 'table_10'],
-        // ['table_24', 'proc_10', 'table_10'],
-        // ['table_25', 'proc_10', 'table_10'],
-        // ['table_26', 'proc_10', 'table_10'],
-        // ['table_27', 'proc_10', 'table_10'],
+        ['table_24', 'proc_10', 'table_10'],
+        ['table_25', 'proc_10', 'table_10'],
+        ['table_26', 'proc_10', 'table_10'],
+        ['table_27', 'proc_10', 'table_10'],
 
         ['table_28', 'proc_11', 'table_11'],
         ['table_29', 'proc_11', 'table_11'],
@@ -101,202 +101,79 @@ async function createDataLineageDocs(final_table, data_lineage_name, procedures_
 }
 
 function replaceNodes(
-    data_lineage_doc, 
-    min_x_coordinate = -470, 
-    min_y_coordinate = -270, 
-    nodes_levels = [],
-    max_no_nodes = undefined,
-    output_tables_names = undefined,
-    output_tables_y_coordinates = undefined,
-    level_number = undefined
-    ){
-    // check if this is the first iteration
-    if (nodes_levels.length == 0){
-        [nodes_levels, max_no_nodes] = createNodesLevels(data_lineage_doc)
-
-        replaceInputTablesLevel(
-            nodes_levels, 
-            0,
-            min_y_coordinate, 
-            min_x_coordinate,
-            max_no_nodes,
-            fixed_tables_names = [],
-            fixed_tables_y_coordinates = []
-        )
-
-        const result = replaceScriptsAndOutputTables(
-            data_lineage_doc,
-            nodes_levels,
-            level_number = 1,
-            min_x_coordinate
-        )
-        // list with names of the output tables. We need this so in the next iteration we know that
-        // positions of those nodes should not be changed
-        output_tables_names = result[0]
-        output_tables_y_coordinates = result[1]
-
-        replaceNodes(
-            data_lineage_doc, 
-            min_x_coordinate, 
-            min_y_coordinate, 
-            nodes_levels,
-            max_no_nodes,
-            output_tables_names,
-            output_tables_y_coordinates,
-            level_number = 2
-        )
-    } else {
-        // check if this is the end of iterations
-        if (level_number == nodes_levels.length - 1) return
-
-        // replace nodes with input tables
-        replaceInputTablesLevel(
-            nodes_levels, 
-            level_number,
-            min_y_coordinate, 
-            min_x_coordinate,
-            max_no_nodes,
-            fixed_tables_names = output_tables_names,
-            fixed_tables_y_coordinates = output_tables_y_coordinates
-        )
-
-        // replace level with scripts and tables created by those scripts
-        const result = replaceScriptsAndOutputTables(
-            data_lineage_doc,
-            nodes_levels,
-            level_number + 1,
-            min_x_coordinate
-        )
-        output_tables_names = result[0]
-        output_tables_y_coordinates = result[1]
-        
-        replaceNodes(
-            data_lineage_doc, 
-            min_x_coordinate, 
-            min_y_coordinate, 
-            nodes_levels,
-            max_no_nodes,
-            output_tables_names,
-            output_tables_y_coordinates,
-            level_number = level_number + 2
-        )
-    }
-}
-
-function replaceScriptsAndOutputTables(
     data_lineage_doc,
-    nodes_levels,
-    level_number,
-    min_x_coordinate
-){
-    `This function is used in the replaceNodes function`
-    const scripts_level = nodes_levels[level_number]
+    max_x_coordinate = 340, 
+    min_y_coordinate = -270,
+    output_table_node = undefined,
+    input_tables_nodes = undefined,
+    procedure_node = undefined,
+    nodes_levels = undefined,
+    output_table_level_nr = 0
+    ){
+    `This function works in iterations. In each iteration we are creating one segment. A segment is a set of output table, a script which
+    creates that output table and input tables which are an input for that script`
 
-    const output_tables_names = []
-    const output_tables_y_coordinates = []
-
-    for (let [i, script_node] of scripts_level.entries()){
-        let input_tables = nodes_levels[level_number - 1][i]
-        let min_input_tables_y = Infinity
-        let output_table = findOutputNode(script_node, data_lineage_doc)
-
-        for (let table_node of input_tables){
-            if (table_node.y < min_input_tables_y) min_input_tables_y = table_node.y
+    // check if this is the first iteration
+    if (output_table_node == undefined){
+        nodes_levels = createNodesLevels(data_lineage_doc)
+        // initial position of nodes
+        for (let [i, level] of nodes_levels.entries()){
+            for (let [j, node] of level.flat().entries()){
+                node.x = max_x_coordinate - i * 150
+                node.y = min_y_coordinate
+            }
         }
 
-        script_node.x = min_x_coordinate + (level_number) * 150
-        script_node.y = min_input_tables_y + (input_tables.length - 1) / 2 * 40
-
-        output_table.x = min_x_coordinate + (level_number + 1) * 150
-        output_table.y = min_input_tables_y + (input_tables.length - 1) / 2 * 40
-
-        output_tables_names.push(output_table.value)
-        output_tables_y_coordinates.push(output_table.y)
+        output_table_node = nodes_levels[output_table_level_nr][0][0]
+        input_tables_nodes = nodes_levels[output_table_level_nr + 2][0]
+        procedure_node = nodes_levels[output_table_level_nr + 1][0]
     }
 
-    return [output_tables_names, output_tables_y_coordinates]
-}
+    // check if this is the end of iterations
+    if (output_table_level_nr == nodes_levels.length - 1) return
 
-function replaceInputTablesLevel(
-    nodes_levels, 
-    level_number,
-    min_y_coordinate, 
-    min_x_coordinate,
-    max_no_nodes,
-    fixed_tables_names = [],
-    fixed_tables_y_coordinates = []
-    ){
-    `This is a function used in the replaceNodes function`
-    
-    // level with table nodes which we will be replacing now
-    const input_tables_level = nodes_levels[level_number]
+    // replace input tables nodes
+    for (let [i, input_table_node] of input_tables_nodes.entries()){
+        let source_procedure = findInputNodes(input_table_node, data_lineage_doc)[0]
 
-    let min_input_tables_y_coordinate = -270
-    for (let input_tables_list of input_tables_level){
-        // table nodes which are outputs of scripts. Their positions can't be changed
-        let fixed_input_tables = input_tables_list.filter(node => {fixed_tables_names.includes(node.value)})
-
-        if (fixed_input_tables.length >= 2){
-            let fixed_input_tables_y_min = Infinity
-            let fixed_input_tables_y_max = -Infinity
-            
-            fixed_input_tables.forEach(node => {
-                if (node.y > fixed_input_tables_y_max) fixed_input_tables_y_max = node.y
-                if (node.y < fixed_input_tables_y_min) fixed_input_tables_y_min = node.y
+        if (source_procedure != undefined){
+            // check what is the minimal y coordinate for input tables for the next segment (next iteration)
+            let new_min_y_coordinate = -Infinity
+            nodes_levels[output_table_level_nr + 4].flat().forEach(node => {
+                if (node.y > new_min_y_coordinate) new_min_y_coordinate = node.y + 40
             })
 
-            // height of a set of input table nodes
-            const height = Math.max(
-                (fixed_input_tables_y_max - fixed_input_tables_y_min),
-                input_tables_list.length * 40
+            let new_input_tables_nodes = findInputNodes(source_procedure, data_lineage_doc)
+
+            replaceNodes(
+                data_lineage_doc,
+                max_x_coordinate - 300, 
+                new_min_y_coordinate,
+                input_table_node,
+                new_input_tables_nodes,
+                source_procedure,
+                nodes_levels,
+                output_table_level_nr + 2
             )
-            min_input_tables_y_coordinate = fixed_input_tables_y_min + ((fixed_input_tables_y_max - fixed_input_tables_y_min) - height) / 2
-
-            for (let [i, table_node] of input_tables_list.entries()){
-                if (fixed_tables_names.includes(table_node.value)) continue
-
-                table_node.x = min_x_coordinate + 150 * level_number
-                table_node.y = min_input_tables_y_coordinate + i * 40
-
-                for (let y of fixed_tables_y_coordinates){
-                    if (Math.abs(y - table_node.y) < 40) table_node.y = y + 40
-                }
-            }
-        // else if (fixed_input_tables.length == 2){}
         } else {
-            for (let [i, table_node] of input_tables_list.entries()){
-                if (fixed_tables_names.includes(table_node.value)) continue
-                
-                table_node.x = min_x_coordinate + 150 * level_number
-                table_node.y = min_input_tables_y_coordinate + i * 40
+            input_table_node.x = max_x_coordinate - 150 * 2
+            input_table_node.y = min_y_coordinate
 
-                for (let y of fixed_tables_y_coordinates){
-                    if (Math.abs(y - table_node.y) < 40) table_node.y = y + 40
-                }
+            let closest_node = findClosestNode(input_table_node, data_lineage_doc)
+            while (Math.abs(closest_node.y - input_table_node.y) < 40){
+                input_table_node.y = closest_node.y + 40
+                closest_node = findClosestNode(input_table_node, data_lineage_doc)
             }
         }
-
-        min_input_tables_y_coordinate += input_tables_list.length * 40
     }
 
+    // replace procedure node
+    procedure_node.x = max_x_coordinate - 150
+    procedure_node.y = min_y_coordinate + (input_tables_nodes.length - 1) / 2 * 40
 
-    // // minimal y coordinate of table nodes for a given level
-    // const min_table_nodes_y = min_y_coordinate + (max_no_nodes - input_tables_level.flat().length) / 2 * 40
-
-    // let previous_table_node_y = min_table_nodes_y - 40
-    // for (let [i, table_node] of input_tables_level.flat().entries()){
-    //     // we don't want to change positions of table nodes which are an output of scripts
-    //     if (fixed_tables_names.includes(table_node.value)) continue
-
-    //     table_node.x = min_x_coordinate + 150 * level_number
-    //     table_node.y = previous_table_node_y + 40
-
-    //     for (let y of fixed_tables_y_coordinates){
-    //         if (Math.abs(y - table_node.y) < 40) table_node.y = y + 40
-    //     }
-
-    //     previous_table_node_y = table_node.y
-    // }
+    // replace the output table node
+    output_table_node.x = max_x_coordinate
+    output_table_node.y = procedure_node.y
 }
 
 function createNodesLevels(data_lineage_doc, nodes_levels = []){
@@ -305,13 +182,10 @@ function createNodesLevels(data_lineage_doc, nodes_levels = []){
     It creates a list of lists of nodes for each level which is called nodes_levels. One level is a 
     vertical set of nodes in a graph on a website.
 
-    nodes_levels[i][0] is a list of tables which are inputs for the nodes_levels[i + 1][0] procedure
-    nodes_levels[i][1] is a list of tables which are inputs for the nodes_levels[i + 1][1] procedure
+    nodes_levels[i][0] is a list of tables which are inputs for the nodes_levels[i - 1][0] procedure
+    nodes_levels[i][1] is a list of tables which are inputs for the nodes_levels[i - 1][1] procedure
     and so on`
 
-    // at first we create nodes_levels such that nodes_levels[i][0] is a list of tables which are inputs for the 
-    // nodes_levels[i - 1][0] procedure and then we will reorder nodes_levels such that 
-    // nodes_levels[i][0] is a list of tables which are inputs for the nodes_levels[i + 1][0] procedure
     if (nodes_levels.length == 0){
         for (let node of data_lineage_doc.nodes){
             if (node.linkedTo.length == 0){
@@ -347,25 +221,31 @@ function createNodesLevels(data_lineage_doc, nodes_levels = []){
         }
     }
 
-    // change the order of levels in the nodes_levels
-    const nodes_levels_reordered = []
-    for (let level_nr of Array.from(Array(nodes_levels.length).keys(), x => nodes_levels.length - 1 - x)){
-        nodes_levels_reordered.push(nodes_levels[level_nr])
+    return nodes_levels
+}
+
+function findClosestNode(node, data_lineage_doc){
+    `This function finds the closest node in the same level (level contains nodes with the same x coordinate)`
+
+    let closest_node
+    for (let node2 of data_lineage_doc.nodes){
+        if (
+            closest_node == undefined 
+            & node2.value != node.value
+            & node2.x == node.x
+        ) 
+            closest_node = node2
+    }
+    for (let node2 of data_lineage_doc.nodes){
+        if (
+            node2.value != node.value 
+            & Math.abs(node2.y - node.y) < Math.abs(closest_node.y - node.y)
+            & node2.x == node.x
+        ) 
+            closest_node = node2
     }
 
-    // check the maximum number of nodes in one level
-    max_no_nodes = -Infinity
-
-    for (let [i, level] of nodes_levels.entries()){
-        // check if this is a level with tables
-        if (i % 2 == 0){
-            if (level.flat().length > max_no_nodes) max_no_nodes = level.flat().length
-        } else {
-            if (level.length > max_no_nodes) max_no_nodes = level.length
-        }
-    }
-
-    return [nodes_levels_reordered, max_no_nodes]
+    return closest_node
 }
 
 function findOutputNode(node, data_lineage_doc){
