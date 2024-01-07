@@ -5,67 +5,25 @@ const Docs = require('../models/dataLineageDocs')
 const mongoose = require('mongoose')
 mongoose.connect('mongodb://127.0.0.1/db_doc')
 
+// height and width of a data lineage graph which is being created in the ./public/dataLineageScripts.js file
+// by the createVisualization function
+const data_lineage_graph_width = 3000
+const data_lieange_graph_height = 2000
+
 test()
 
 async function test(){
-    // procedures_in_out[i][0] is an input table for the i-th stored procedure procedures_in_out[i][1] which
-    // creates an output table called procedures_in_out[i][2]
-    // const procedures_in_out = await proceduresInOut()
+    // scripts_in_out[i][0] is an input table for the i-th stored procedure scripts_in_out[i][1] which
+    // creates an output table called scripts_in_out[i][2]
 
-    const procedures_in_out = [
-        ['table_10', 'proc_00', 'table_00'],
-        ['table_11', 'proc_00', 'table_00'],
-        ['table_12', 'proc_00', 'table_00'],
-        ['table_13', 'proc_00', 'table_00'],
-        ['table_14', 'proc_00', 'table_00'],
-        ['table_15', 'proc_00', 'table_00'],
-        ['table_16', 'proc_00', 'table_00'],
-        ['table_17', 'proc_00', 'table_00'],
-        ['table_18', 'proc_00', 'table_00'],
-        ['table_19', 'proc_00', 'table_00'],
-        
-        ['table_20', 'proc_10', 'table_10'],
-        ['table_21', 'proc_10', 'table_10'],
-        ['table_22', 'proc_10', 'table_10'],
-        ['table_23', 'proc_10', 'table_10'],
-        ['table_24', 'proc_10', 'table_10'],
-        ['table_25', 'proc_10', 'table_10'],
-        ['table_26', 'proc_10', 'table_10'],
-        ['table_27', 'proc_10', 'table_10'],
-
-        ['table_28', 'proc_11', 'table_11'],
-        ['table_29', 'proc_11', 'table_11'],
-        ['table_210', 'proc_11', 'table_11'],
-        ['table_211', 'proc_11', 'table_11'],
-        
-        ['table_30', 'proc_20', 'table_21'],
-        ['table_31', 'proc_20', 'table_21'],
-        ['table_32', 'proc_20', 'table_21'],
-        ['table_33', 'proc_20', 'table_21'],
-        ['table_34', 'proc_20', 'table_21'],
-        ['table_35', 'proc_20', 'table_21'],
-
-        ['table_36', 'proc_21', 'table_20'],
-        ['table_37', 'proc_21', 'table_20'],
-        ['table_38', 'proc_21', 'table_20'],
-        ['table_39', 'proc_21', 'table_20']
-
-        // ['table_17', 'proc_01', 'table_01'],
-        // ['table_18', 'proc_01', 'table_01'],
-        // ['table_19', 'proc_01', 'table_01'],
-
-        // ['table_28', 'proc_12', 'table_17'],
-        // ['table_29', 'proc_12', 'table_17'],
-
-        // ['table_210', 'proc_13', 'table_18']
-    ]
+    const scripts_in_out = await scriptsInOut()
 
     // final tables are tables which are not being an input for any stored procedure
     const final_tables = []
-    for (let row of procedures_in_out){
+    for (let row of scripts_in_out){
         let table = row[2]
         let isFinalTable = true
-        for (let row of procedures_in_out){
+        for (let row of scripts_in_out){
             if (row[0] == table) {
                 isFinalTable = false
                 break
@@ -75,26 +33,40 @@ async function test(){
         if (isFinalTable & !final_tables.includes(table)) final_tables.push(table)
     }
 
-    // for (let final_table of final_tables){
-    //     createDataLineageDocs(final_table, final_table, procedures_in_out)
-    // }
-    createDataLineageDocs(final_tables[0], final_tables[0], procedures_in_out)
+    // createDataLineageDocs('msdb.dbo.sysproxies', 'msdb.dbo.sysproxies', scripts_in_out)
+
+    for (let final_table of final_tables){
+        let dataLineageId = await Docs.count({}) + 1
+        createDataLineageDocs(
+            final_table, 
+            final_table, 
+            scripts_in_out,
+            dataLineageId
+        )
+    }
+
+    // createDataLineageDocs(final_tables[0], final_tables[0], scripts_in_out)
 
     console.log('done')
 }
 
-async function createDataLineageDocs(final_table, data_lineage_name, procedures_in_out){
+async function createDataLineageDocs(
+    final_table, 
+    data_lineage_name, 
+    scripts_in_out,
+    dataLineageId
+){
     `This function creates a data lineage document which shows how a given table called final_table
     is being created. This document is being saved in the models/dataLineageDocs.js data model and it can be used by 
     routes/data_lineage_route.js and views/dataLineage.ejs files for creating data lineage visualizations`
 
     const data_lineage_doc = {
-        dataLineageId: await Docs.count({}) + 1,
+        dataLineageId: dataLineageId,
         dataLineageName: data_lineage_name,
         nodes: []
     }
 
-    createNodes(data_lineage_doc, procedures_in_out, final_table)
+    createNodes(data_lineage_doc, scripts_in_out, final_table)
     replaceNodes(data_lineage_doc)
 
     await Docs.insertMany(data_lineage_doc)
@@ -102,8 +74,9 @@ async function createDataLineageDocs(final_table, data_lineage_name, procedures_
 
 function replaceNodes(
     data_lineage_doc,
-    max_x_coordinate = 340, 
-    min_y_coordinate = -270,
+    max_level_width = 600,
+    max_x_coordinate = undefined, 
+    min_y_coordinate = -data_lieange_graph_height / 2 + 20,
     output_table_node = undefined,
     input_tables_nodes = undefined,
     procedure_node = undefined,
@@ -111,15 +84,27 @@ function replaceNodes(
     output_table_level_nr = 0
     ){
     `This function works in iterations. In each iteration we are creating one segment. A segment is a set of output table, a script which
-    creates that output table and input tables which are an input for that script`
+    creates that output table and input tables which are an input for that script
+    
+    max_level_width argument indicates a maximum width of a nodes level. Those are the nodes with the same x coordinate`
 
     // check if this is the first iteration
     if (output_table_node == undefined){
-        nodes_levels = createNodesLevels(data_lineage_doc)
+        try {
+            nodes_levels = createNodesLevels(data_lineage_doc)
+        } catch {
+            console.log(data_lineage_doc.nodes.map(x => [x.value, x.type, x.linkedTo[0]]))
+        }
+
+        max_x_coordinate = Math.min(
+            data_lineage_graph_width / 2,
+            -data_lineage_graph_width / 2 + (nodes_levels.length - 1) * max_level_width
+        )
+
         // initial position of nodes
         for (let [i, level] of nodes_levels.entries()){
             for (let [j, node] of level.flat().entries()){
-                node.x = max_x_coordinate - i * 150
+                node.x = max_x_coordinate - i * max_level_width
                 node.y = min_y_coordinate
             }
         }
@@ -142,12 +127,12 @@ function replaceNodes(
             nodes_levels[output_table_level_nr + 4].flat().forEach(node => {
                 if (node.y > new_min_y_coordinate) new_min_y_coordinate = node.y + 40
             })
-
+            // input tables for the next segment (next iteration)
             let new_input_tables_nodes = findInputNodes(source_procedure, data_lineage_doc)
 
             replaceNodes(
                 data_lineage_doc,
-                max_x_coordinate - 300, 
+                max_x_coordinate - max_level_width * 2, 
                 new_min_y_coordinate,
                 input_table_node,
                 new_input_tables_nodes,
@@ -156,10 +141,11 @@ function replaceNodes(
                 output_table_level_nr + 2
             )
         } else {
-            input_table_node.x = max_x_coordinate - 150 * 2
+            input_table_node.x = max_x_coordinate - max_level_width * 2
             input_table_node.y = min_y_coordinate
 
             let closest_node = findClosestNode(input_table_node, data_lineage_doc)
+            if (closest_node == undefined) continue
             while (Math.abs(closest_node.y - input_table_node.y) < 40){
                 input_table_node.y = closest_node.y + 40
                 closest_node = findClosestNode(input_table_node, data_lineage_doc)
@@ -168,7 +154,7 @@ function replaceNodes(
     }
 
     // replace procedure node
-    procedure_node.x = max_x_coordinate - 150
+    procedure_node.x = max_x_coordinate - max_level_width
     procedure_node.y = min_y_coordinate + (input_tables_nodes.length - 1) / 2 * 40
 
     // replace the output table node
@@ -201,7 +187,10 @@ function createNodesLevels(data_lineage_doc, nodes_levels = []){
 
             for (let procedure of previous_level_procedures){
                 let linked_nodes = findInputNodes(procedure, data_lineage_doc)
-                new_level.push(linked_nodes)
+                // new_level.push(linked_nodes)
+
+                // push only those nodes which are tables, not scripts (views tables and scripts has the same name)
+                new_level.push(linked_nodes.map(x => x.type == 'table'))
             }
 
             nodes_levels.push(new_level)
@@ -211,7 +200,12 @@ function createNodesLevels(data_lineage_doc, nodes_levels = []){
             const new_level = []
             for (let table_node of nodes_levels.slice(-1)[0].flat()){
                 let linked_nodes = findInputNodes(table_node, data_lineage_doc)
-                if (linked_nodes.length > 0) new_level.push(linked_nodes[0])
+                if (linked_nodes.length > 0) {
+                    // new_level.push(linked_nodes[0])
+
+                    // push only those nodes which are tables, not scripts (views tables and scripts has the same name)
+                    new_level.push(linked_nodes.map(x => x.type == 'script')[0])
+                }
             }
 
             if (new_level.length > 0){
@@ -236,6 +230,9 @@ function findClosestNode(node, data_lineage_doc){
         ) 
             closest_node = node2
     }
+
+    if (closest_node == undefined) return closest_node
+
     for (let node2 of data_lineage_doc.nodes){
         if (
             node2.value != node.value 
@@ -269,18 +266,18 @@ function findInputNodes(node, data_lineage_doc){
 
 function createNodes(
     data_lineage_doc, 
-    procedures_in_out, 
+    scripts_in_out, 
     table,
-    procedure = undefined
+    first_iteration = true
 ){
     `This function creates nodes in the data_lineage_doc object (from the models/dataLineageDocs model)
     for stored procedures and source tables which are used to create the table indicated by the 'table' argument.
     
     procedure argument indicates a name of a procedure for which a given table in an input
     
-    procedures_in_out argument is an output from the proceduresInOut function`
+    scripts_in_out argument is an output from the scriptsInOut function`
 
-    if (procedure == undefined){
+    if (first_iteration){
         data_lineage_doc.nodes.push({
             value: table,
             type: 'table',
@@ -288,66 +285,92 @@ function createNodes(
         })
     }
 
-    let procedure_name
-    for (let row of procedures_in_out){
+    let script_name
+    for (let row of scripts_in_out){
         if (row[2] == table){
-            procedure_name = row[1]
+            script_name = row[1]
             data_lineage_doc.nodes.push({
-                value: procedure_name,
-                type: 'procedure',
+                value: script_name,
+                type: 'script',
                 linkedTo: [table]
             })
             break
         }
     }
 
+    if (script_name == undefined) return
+
     let input_tables = []
-    procedures_in_out.forEach((x) => {
-        if (x[1] == procedure_name & !input_tables.includes(x[0]))
+    scripts_in_out.forEach((x) => {
+        if (x[1] == script_name & !input_tables.includes(x[0]))
             input_tables.push(x[0])
     })
-
-    if (input_tables.length == 0) return 
 
     for (let [i, input_table] of input_tables.entries()){
         data_lineage_doc.nodes.push({
             value: input_table,
             type: 'table',
-            linkedTo: [procedure_name]
+            linkedTo: [script_name]
         })
     }
 
-    for (let [i, input_table] of input_tables.entries()){
+    for (let input_table of input_tables){
         createNodes(
             data_lineage_doc, 
-            procedures_in_out, 
+            scripts_in_out, 
             input_table,
-            procedure_name
+            first_iteration = false
         )
     }
 }
 
-async function proceduresInOut(){
-    `This function creates a variable called procedures_in_out such that procedures_in_out[i][0] is an input table for the 
-    i-th procedure called procedures_in_out[i][1] which inserts data into the procedures_in_out[i][2] output table`
+async function scriptsInOut(){
+    `This function creates a variable called scripts_in_out such that scripts_in_out[i][0] is an input table for the 
+    i-th procedure called scripts_in_out[i][1] which inserts data into the scripts_in_out[i][2] output table`
 
     const [tables, views, procedures] = await getDbData()
-    const procedures_in_out = []
-    const input_tables = []
+    const scripts_in_out = []
+    const views_names = views.map(x => x[0])
 
-    for (let [procedure, script] of procedures){
+    // insert into the scripts_in_out data about procedures, what tables they take as input and what table they create
+    for (let [procedure_name, script] of procedures){
         if (script == undefined) continue
         if (!script.includes('into') | !script.includes('from')) continue
 
+        const input_tables = []
         const output_table = script.split('into ')[1].split(' ')[0]
-
-        if (!tables.includes(output_table) & !views.includes(output_table)) continue
-
-        let script_words = script.split(' ')
+        const script_words = script.split(' ')
+        
+        if (!tables.includes(output_table) & !views_names.includes(output_table)) continue
 
         for(let [i, word] of script_words.entries()){
             if (['from', 'join'].includes(word)){
-                if ((tables.includes(script_words[i + 1]) | views.includes(script_words[i + 1]))
+                if ((tables.includes(script_words[i + 1]) | views_names.includes(script_words[i + 1]))
+                    & !input_tables.includes(script_words[i + 1]) 
+                ){
+                    input_tables.push(script_words[i + 1])
+                }
+            }
+        }
+
+        // if input tables contains output table than we can't create a data lineage graph for that procedure
+        if (input_tables.includes(output_table)) continue
+
+        for (let input_table of input_tables){
+            scripts_in_out.push([input_table, procedure_name, output_table])
+        }
+    }
+
+    // insert into the scripts_in_out data about views, what tables they take as input and what table they create
+    for (let [view_name, view_script] of views){
+        if (view_script == undefined) continue
+        
+        const input_tables = []
+        const script_words = view_script.split(' ')
+
+        for(let [i, word] of script_words.entries()){
+            if (['from', 'join'].includes(word)){
+                if ((tables.includes(script_words[i + 1]) | views_names.includes(script_words[i + 1]))
                     & !input_tables.includes(script_words[i + 1]) 
                 ){
                     input_tables.push(script_words[i + 1])
@@ -356,11 +379,11 @@ async function proceduresInOut(){
         }
 
         for (let input_table of input_tables){
-            procedures_in_out.push([input_table, procedure, output_table])
+            scripts_in_out.push([input_table, view_name, view_name])
         }
     }
 
-    return procedures_in_out
+    return scripts_in_out
 }
 
 async function getDbData(){
@@ -383,29 +406,53 @@ async function getDbData(){
         // if (db.name != 'Stage') continue
 
         let tables_new = await sql.read_query(`use ${db.name} SELECT (SCHEMA_NAME(schema_id) + '.' + name) as tableName FROM sys.tables`)
-        let views_new = await sql.read_query(`use ${db.name} SELECT (schema_name(schema_id) + '.' + name) as viewName FROM sys.views`)
-        let procedures_new = await sql.read_query(`
-            use ${db.name}
+        let views_new = await sql.read_query(
+            `use ${db.name} 
             SELECT 
-                (specific_catalog + '.' + specific_schema + '.' + specific_name) as 'procedureName'
+                (schema_name(v.schema_id) + '.' + v.name) as viewName,
+                m.definition
+            FROM 
+                sys.views as v
+                join sys.sql_modules as m on m.object_id = v.object_id`
+        )
+        // let procedures_new = await sql.read_query(
+        //     `use ${db.name}
+        //     SELECT 
+        //         (specific_catalog + '.' + specific_schema + '.' + specific_name) as 'procedureName'
+        //     FROM 
+        //         ${db.name}.INFORMATION_SCHEMA.ROUTINES
+        //     WHERE 
+        //         ROUTINE_TYPE = 'PROCEDURE'`
+        // )
+        let procedures_new = await sql.read_query(
+            `use ${db.name}
+            SELECT 
+                (specific_catalog + '.' + specific_schema + '.' + specific_name) as 'procedureName',
+                routine_definition as routineDefinition
             FROM 
                 ${db.name}.INFORMATION_SCHEMA.ROUTINES
             WHERE 
-                ROUTINE_TYPE = 'PROCEDURE'
-        `)
+                ROUTINE_TYPE = 'PROCEDURE'`
+        )
 
         // change names into a lower case
-        tables_new.recordset.forEach((record, i) => {tables_new.recordset[i] = db.name + '.' + record.tableName.toLowerCase()})
-        views_new.recordset.forEach((record, i) => {views_new.recordset[i] = db.name + '.' + record.viewName.toLowerCase()})
-        procedures_new.recordset.forEach((record, i) => {procedures_new.recordset[i] = record.procedureName.toLowerCase()})
+        tables_new.recordset.forEach((record, i) => {tables_new.recordset[i] = (db.name + '.' + record.tableName).toLowerCase()})
+        // views_new.recordset.forEach((record, i) => {views_new.recordset[i] = (db.name + '.' + record.viewName).toLowerCase()})
+        views_new.recordset.forEach((record, i) => {
+            views_new.recordset[i] = [(db.name + '.' + record.viewName).toLowerCase(), cleanCode(record.definition.toLowerCase())]
+        })
+        // procedures_new.recordset.forEach((record, i) => {procedures_new.recordset[i] = record.procedureName.toLowerCase()})
+        procedures_new.recordset.forEach((record, i) => {
+            procedures_new.recordset[i] = [record.procedureName.toLowerCase(), cleanCode(record.routineDefinition)]
+        })
 
-        // get procedures'code
-        procedures_new.recordset = await Promise.all(procedures_new.recordset.map(async (procedure) => {
-            const procedure_name = procedure.split('.').slice(1).join('.')
-            let procedure_code = await sql.read_query(`use ${db.name} SELECT OBJECT_DEFINITION (OBJECT_ID(N'${procedure_name}')) as code`)
-            procedure_code = cleanCode(procedure_code.recordset[0].code)
-            return [procedure, procedure_code]
-        }))
+        // // get procedures'code
+        // procedures_new.recordset = await Promise.all(procedures_new.recordset.map(async (procedure) => {
+        //     const procedure_name = procedure.split('.').slice(1).join('.')
+        //     let procedure_code = await sql.read_query(`use ${db.name} SELECT OBJECT_DEFINITION (OBJECT_ID(N'${procedure_name}')) as code`)
+        //     procedure_code = cleanCode(procedure_code.recordset[0].code)
+        //     return [procedure, procedure_code]
+        // }))
 
         tables = tables.concat(tables_new.recordset)
         views = views.concat(views_new.recordset)

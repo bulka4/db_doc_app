@@ -9,8 +9,9 @@ getData().then(dataLineageDocs => {
 // dataLineageDocs argument is created by getData function and it contains data about data lineage
 // documentation needed for creating a visualization
 async function createVisualization(dataLineageDocs){
-    const width = 928
-    const height = 600
+    const width = 3000
+    const height = 2000
+    // links defines which nodes are connected with arrows
     let links = []
     let nodes = []
     let currentDocument
@@ -20,7 +21,8 @@ async function createVisualization(dataLineageDocs){
             nodes = document.nodes
             for (let node1 of nodes){
                 for (let node2 of nodes){
-                    if (node1.linkedTo.includes(node2.value)) links.push({source: node1.value, target: node2.value})
+                    if (node1.linkedTo.includes(node2.value)) 
+                        links.push({source: node1.value, target: node2.value})
                 }
             }
         }
@@ -35,7 +37,10 @@ async function createVisualization(dataLineageDocs){
             .attr("viewBox", [-width / 2, -height / 2, width, height])
             .attr("width", width)
             .attr("height", height)
-            .attr("style", "max-width: 100%; height: auto; font: 12px sans-serif;")
+            // .attr('width', '100vw')
+            // .attr('height', '100vh')
+            // .attr('overflow', 'auto')
+            .attr("style", "font: 12px sans-serif; overflow: auto;")
 
     // define style for arrows (markers)
     svg
@@ -156,8 +161,8 @@ async function createVisualization(dataLineageDocs){
 // dataLineageDocs argument is created by getData function and it contains data about data lineage
 // documentation needed for creating a visualization
 async function updateVisualization(dataLineageDocs){
-    const width = 928
-    const height = 600
+    const width = 3000
+    const height = 2000
     let links = []
     let nodes = []
     let currentDocument
