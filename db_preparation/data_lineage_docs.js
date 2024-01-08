@@ -12,6 +12,14 @@ const data_lieange_graph_height = 2000
 
 test()
 
+async function test2(){
+    let data_lineage_doc = await Docs.find({dataLineageName: 'stage.trados.trados_salesforcecontract'})
+    data_lineage_doc = data_lineage_doc[0]
+    
+    nodes_levels = createNodesLevels(data_lineage_doc)
+    console.log(nodes_levels)
+}
+
 async function test(){
     // scripts_in_out[i][0] is an input table for the i-th stored procedure scripts_in_out[i][1] which
     // creates an output table called scripts_in_out[i][2]
@@ -33,8 +41,6 @@ async function test(){
         if (isFinalTable & !final_tables.includes(table)) final_tables.push(table)
     }
 
-    // createDataLineageDocs('msdb.dbo.sysproxies', 'msdb.dbo.sysproxies', scripts_in_out)
-
     for (let final_table of final_tables){
         let dataLineageId = await Docs.count({}) + 1
         createDataLineageDocs(
@@ -44,8 +50,6 @@ async function test(){
             dataLineageId
         )
     }
-
-    // createDataLineageDocs(final_tables[0], final_tables[0], scripts_in_out)
 
     console.log('done')
 }
@@ -79,7 +83,7 @@ function replaceNodes(
     min_y_coordinate = -data_lieange_graph_height / 2 + 20,
     output_table_node = undefined,
     input_tables_nodes = undefined,
-    procedure_node = undefined,
+    script_node = undefined,
     nodes_levels = undefined,
     output_table_level_nr = 0
     ){
@@ -90,11 +94,7 @@ function replaceNodes(
 
     // check if this is the first iteration
     if (output_table_node == undefined){
-        try {
-            nodes_levels = createNodesLevels(data_lineage_doc)
-        } catch {
-            console.log(data_lineage_doc.nodes.map(x => [x.value, x.type, x.linkedTo[0]]))
-        }
+        nodes_levels = createNodesLevels(data_lineage_doc)
 
         max_x_coordinate = Math.min(
             data_lineage_graph_width / 2,
@@ -103,64 +103,183 @@ function replaceNodes(
 
         // initial position of nodes
         for (let [i, level] of nodes_levels.entries()){
-            for (let [j, node] of level.flat().entries()){
-                node.x = max_x_coordinate - i * max_level_width
+            const level_nodes = level.flat()
+            const level_nodes_values = []
+            
+            level_nodes.forEach(node => {
+                level_nodes_values.push(node.value)
+            })
+
+            // check what is the level width. This is the maximum width of a single node in that level.
+            // It depends on a number of characters in this node value
+            let level_width = level_nodes_values[0].length * 10
+            level_nodes_values.forEach(value => {
+                if (value.length * 10 > level_width) level_width = value.length * 10
+            })
+            level_width += 200
+
+            for (let [j, node] of level_nodes.entries()){
+                node.x = max_x_coordinate - i * level_width
                 node.y = min_y_coordinate
             }
         }
 
         output_table_node = nodes_levels[output_table_level_nr][0][0]
         input_tables_nodes = nodes_levels[output_table_level_nr + 2][0]
-        procedure_node = nodes_levels[output_table_level_nr + 1][0]
+        script_node = nodes_levels[output_table_level_nr + 1][0]
     }
 
     // check if this is the end of iterations
     if (output_table_level_nr == nodes_levels.length - 1) return
 
-    // replace input tables nodes
+    // replace input tables nodes which are being created by some script
     for (let [i, input_table_node] of input_tables_nodes.entries()){
-        let source_procedure = findInputNodes(input_table_node, data_lineage_doc)[0]
+        let source_script = findInputNodes(input_table_node, data_lineage_doc)[0]
 
-        if (source_procedure != undefined){
-            // check what is the minimal y coordinate for input tables for the next segment (next iteration)
-            let new_min_y_coordinate = -Infinity
-            nodes_levels[output_table_level_nr + 4].flat().forEach(node => {
-                if (node.y > new_min_y_coordinate) new_min_y_coordinate = node.y + 40
-            })
-            // input tables for the next segment (next iteration)
-            let new_input_tables_nodes = findInputNodes(source_procedure, data_lineage_doc)
+        if (source_script == undefined) continue
 
-            replaceNodes(
-                data_lineage_doc,
-                max_x_coordinate - max_level_width * 2, 
-                new_min_y_coordinate,
-                input_table_node,
-                new_input_tables_nodes,
-                source_procedure,
-                nodes_levels,
-                output_table_level_nr + 2
-            )
-        } else {
-            input_table_node.x = max_x_coordinate - max_level_width * 2
-            input_table_node.y = min_y_coordinate
+        // check what is the minimal y coordinate for input tables for the next segment (next iteration)
+        let new_min_y_coordinate = -Infinity
+        nodes_levels[output_table_level_nr + 4].flat().forEach(node => {
+            if (node.y > new_min_y_coordinate) new_min_y_coordinate = node.y + 40
+        })
+        // input tables for the next segment (next iteration)
+        let new_input_tables_nodes = findInputNodes(source_script, data_lineage_doc)
 
-            let closest_node = findClosestNode(input_table_node, data_lineage_doc)
-            if (closest_node == undefined) continue
-            while (Math.abs(closest_node.y - input_table_node.y) < 40){
-                input_table_node.y = closest_node.y + 40
-                closest_node = findClosestNode(input_table_node, data_lineage_doc)
-            }
+        replaceNodes(
+            data_lineage_doc,
+            max_level_width,
+            max_x_coordinate - max_level_width * 2, 
+            new_min_y_coordinate,
+            input_table_node,
+            new_input_tables_nodes,
+            source_script,
+            nodes_levels,
+            output_table_level_nr + 2
+        )
+    }
+
+    // replace input tables nodes which are not being created by any script
+    for (let [i, input_table_node] of input_tables_nodes.entries()){
+        let source_script = findInputNodes(input_table_node, data_lineage_doc)[0]
+        if (source_script != undefined) continue
+
+        // input_table_node.x = max_x_coordinate - max_level_width * 2
+        input_table_node.y = min_y_coordinate
+
+        // check if the node is not to close to other nodes in the same level. If yes then move it
+        let closest_node = findClosestNode(input_table_node, data_lineage_doc)
+
+        if (closest_node == undefined) continue
+        while (Math.abs(closest_node.y - input_table_node.y) < 40){
+            input_table_node.y = closest_node.y + 40
+            closest_node = findClosestNode(input_table_node, data_lineage_doc)
         }
     }
 
-    // replace procedure node
-    procedure_node.x = max_x_coordinate - max_level_width
-    procedure_node.y = min_y_coordinate + (input_tables_nodes.length - 1) / 2 * 40
+    // replace the script node
+    // script_node.x = max_x_coordinate - max_level_width
+    script_node.y = min_y_coordinate + (input_tables_nodes.length - 1) / 2 * 40
 
     // replace the output table node
-    output_table_node.x = max_x_coordinate
-    output_table_node.y = procedure_node.y
+    // output_table_node.x = max_x_coordinate
+    output_table_node.y = script_node.y
 }
+
+// function replaceNodes(
+//     data_lineage_doc,
+//     max_level_width = 600,
+//     max_x_coordinate = undefined, 
+//     min_y_coordinate = -data_lieange_graph_height / 2 + 20,
+//     output_table_node = undefined,
+//     input_tables_nodes = undefined,
+//     script_node = undefined,
+//     nodes_levels = undefined,
+//     output_table_level_nr = 0
+//     ){
+//     `This function works in iterations. In each iteration we are creating one segment. A segment is a set of output table, a script which
+//     creates that output table and input tables which are an input for that script
+    
+//     max_level_width argument indicates a maximum width of a nodes level. Those are the nodes with the same x coordinate`
+
+//     // check if this is the first iteration
+//     if (output_table_node == undefined){
+//         nodes_levels = createNodesLevels(data_lineage_doc)
+
+//         max_x_coordinate = Math.min(
+//             data_lineage_graph_width / 2,
+//             -data_lineage_graph_width / 2 + (nodes_levels.length - 1) * max_level_width
+//         )
+
+//         // initial position of nodes
+//         for (let [i, level] of nodes_levels.entries()){
+//             for (let [j, node] of level.flat().entries()){
+//                 node.x = max_x_coordinate - i * max_level_width
+//                 node.y = min_y_coordinate
+//             }
+//         }
+
+//         output_table_node = nodes_levels[output_table_level_nr][0][0]
+//         input_tables_nodes = nodes_levels[output_table_level_nr + 2][0]
+//         script_node = nodes_levels[output_table_level_nr + 1][0]
+//     }
+
+//     // check if this is the end of iterations
+//     if (output_table_level_nr == nodes_levels.length - 1) return
+
+//     // replace input tables nodes which are being created by some script
+//     for (let [i, input_table_node] of input_tables_nodes.entries()){
+//         let source_script = findInputNodes(input_table_node, data_lineage_doc)[0]
+
+//         if (source_script == undefined) continue
+
+//         // check what is the minimal y coordinate for input tables for the next segment (next iteration)
+//         let new_min_y_coordinate = -Infinity
+//         nodes_levels[output_table_level_nr + 4].flat().forEach(node => {
+//             if (node.y > new_min_y_coordinate) new_min_y_coordinate = node.y + 40
+//         })
+//         // input tables for the next segment (next iteration)
+//         let new_input_tables_nodes = findInputNodes(source_script, data_lineage_doc)
+
+//         replaceNodes(
+//             data_lineage_doc,
+//             max_level_width,
+//             max_x_coordinate - max_level_width * 2, 
+//             new_min_y_coordinate,
+//             input_table_node,
+//             new_input_tables_nodes,
+//             source_script,
+//             nodes_levels,
+//             output_table_level_nr + 2
+//         )
+//     }
+
+//     // replace input tables nodes which are not being created by any script
+//     for (let [i, input_table_node] of input_tables_nodes.entries()){
+//         let source_script = findInputNodes(input_table_node, data_lineage_doc)[0]
+//         if (source_script != undefined) continue
+
+//         input_table_node.x = max_x_coordinate - max_level_width * 2
+//         input_table_node.y = min_y_coordinate
+
+//         // check if the node is not to close to other nodes in the same level. If yes then move it
+//         let closest_node = findClosestNode(input_table_node, data_lineage_doc)
+
+//         if (closest_node == undefined) continue
+//         while (Math.abs(closest_node.y - input_table_node.y) < 40){
+//             input_table_node.y = closest_node.y + 40
+//             closest_node = findClosestNode(input_table_node, data_lineage_doc)
+//         }
+//     }
+
+//     // replace the script node
+//     script_node.x = max_x_coordinate - max_level_width
+//     script_node.y = min_y_coordinate + (input_tables_nodes.length - 1) / 2 * 40
+
+//     // replace the output table node
+//     output_table_node.x = max_x_coordinate
+//     output_table_node.y = script_node.y
+// }
 
 function createNodesLevels(data_lineage_doc, nodes_levels = []){
     `This function is used in the replaceNodes function.
@@ -190,7 +309,7 @@ function createNodesLevels(data_lineage_doc, nodes_levels = []){
                 // new_level.push(linked_nodes)
 
                 // push only those nodes which are tables, not scripts (views tables and scripts has the same name)
-                new_level.push(linked_nodes.map(x => x.type == 'table'))
+                new_level.push(linked_nodes.filter(x => x.type == 'table'))
             }
 
             nodes_levels.push(new_level)
@@ -204,7 +323,7 @@ function createNodesLevels(data_lineage_doc, nodes_levels = []){
                     // new_level.push(linked_nodes[0])
 
                     // push only those nodes which are tables, not scripts (views tables and scripts has the same name)
-                    new_level.push(linked_nodes.map(x => x.type == 'script')[0])
+                    new_level.push(linked_nodes.filter(x => x.type == 'script')[0])
                 }
             }
 
@@ -227,8 +346,10 @@ function findClosestNode(node, data_lineage_doc){
             closest_node == undefined 
             & node2.value != node.value
             & node2.x == node.x
-        ) 
+        ){
             closest_node = node2
+            break
+        }
     }
 
     if (closest_node == undefined) return closest_node
@@ -258,7 +379,8 @@ function findInputNodes(node, data_lineage_doc){
     
     const linked_nodes = []
     for (let node2 of data_lineage_doc.nodes){
-        if (node2.linkedTo.includes(node.value)) linked_nodes.push(node2)
+        // we need to make sure that nodes types are different because view scripts and tables nodes have the same value
+        if (node2.linkedTo.includes(node.value) & node2.type != node.type) linked_nodes.push(node2)
     }
 
     return linked_nodes

@@ -21,8 +21,9 @@ async function createVisualization(dataLineageDocs){
             nodes = document.nodes
             for (let node1 of nodes){
                 for (let node2 of nodes){
-                    if (node1.linkedTo.includes(node2.value)) 
-                        links.push({source: node1.value, target: node2.value})
+                    // we don't want to join together nodes of the same type (view scripts and tables nodes has the same value)
+                    if (node1.linkedTo.includes(node2.value) & node1.type != node2.type) 
+                        links.push({source: node1._id, target: node2._id})
                 }
             }
         }
@@ -30,17 +31,17 @@ async function createVisualization(dataLineageDocs){
 
     const simulation = d3
         .forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(d => d.value).strength(0))
+        .force("link", d3.forceLink(links).id(d => d._id).strength(0))
 
     const svg = d3
         .create("svg")
             .attr("viewBox", [-width / 2, -height / 2, width, height])
             .attr("width", width)
             .attr("height", height)
-            // .attr('width', '100vw')
-            // .attr('height', '100vh')
+            // .attr('width', '100%')
+            // .attr('height', '100%')
             // .attr('overflow', 'auto')
-            .attr("style", "font: 12px sans-serif; overflow: auto;")
+            .attr("style", "font: 12px sans-serif;")
 
     // define style for arrows (markers)
     svg
@@ -172,7 +173,9 @@ async function updateVisualization(dataLineageDocs){
             nodes = document.nodes
             for (let node1 of nodes){
                 for (let node2 of nodes){
-                    if (node1.linkedTo.includes(node2.value)) links.push({source: node1.value, target: node2.value})
+                //     if (node1.linkedTo.includes(node2.value)) links.push({source: node1.value, target: node2.value})
+                    if (node1.linkedTo.includes(node2.value) & node1.type != node2.type) 
+                        links.push({source: node1._id, target: node2._id})
                 }
             }
         }
@@ -180,7 +183,8 @@ async function updateVisualization(dataLineageDocs){
 
     const simulation = d3
         .forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(d => d.value).strength(0))
+        // .force("link", d3.forceLink(links).id(d => d.value).strength(0))
+        .force("link", d3.forceLink(links).id(d => d._id).strength(0))
 
     // const svg = d3
     //     .select("svg")
