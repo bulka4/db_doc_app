@@ -9,16 +9,15 @@ getData().then(dataLineageDocs => {
 // dataLineageDocs argument is created by getData function and it contains data about data lineage
 // documentation needed for creating a visualization
 async function createVisualization(dataLineageDocs){
-    const width = 3000
-    const height = 2000
+    const graph_width = dataLineageGraph.offsetWidth
+    const graph_height = dataLineageGraph.offsetHeight
+
     // links defines which nodes are connected with arrows
     let links = []
-    let nodes = []
-    let currentDocument
-    for (let document of dataLineageDocs){
-        if (document.dataLineageId == currentDataLineageId){
-            currentDocument = document
-            nodes = document.nodes
+    let nodes
+    for (let data_lineage_doc of dataLineageDocs){
+        if (data_lineage_doc.dataLineageId == currentDataLineageId){
+            nodes = data_lineage_doc.nodes
             for (let node1 of nodes){
                 for (let node2 of nodes){
                     // we don't want to join together nodes of the same type (view scripts and tables nodes has the same value)
@@ -26,6 +25,13 @@ async function createVisualization(dataLineageDocs){
                         links.push({source: node1._id, target: node2._id})
                 }
             }
+
+            // change position of nodes
+            replaceNodes(
+                data_lineage_doc, 
+                graph_width,
+                graph_height
+            )
         }
     }
 
@@ -35,13 +41,10 @@ async function createVisualization(dataLineageDocs){
 
     const svg = d3
         .create("svg")
-            .attr("viewBox", [-width / 2, -height / 2, width, height])
-            .attr("width", width)
-            .attr("height", height)
-            // .attr('width', '100%')
-            // .attr('height', '100%')
-            // .attr('overflow', 'auto')
+            .attr('width', '100%')
+            .attr('height', '100%')
             .attr("style", "font: 12px sans-serif;")
+            .attr("viewBox", [0, 0, graph_width, graph_height])
 
     // define style for arrows (markers)
     svg
@@ -159,145 +162,205 @@ async function createVisualization(dataLineageDocs){
     adjustVisualization(node, link)
 }
 
-// dataLineageDocs argument is created by getData function and it contains data about data lineage
-// documentation needed for creating a visualization
-async function updateVisualization(dataLineageDocs){
-    const width = 3000
-    const height = 2000
-    let links = []
-    let nodes = []
-    let currentDocument
-    for (let document of dataLineageDocs){
-        if (document.dataLineageId == currentDataLineageId){
-            currentDocument = document
-            nodes = document.nodes
-            for (let node1 of nodes){
-                for (let node2 of nodes){
-                //     if (node1.linkedTo.includes(node2.value)) links.push({source: node1.value, target: node2.value})
-                    if (node1.linkedTo.includes(node2.value) & node1.type != node2.type) 
-                        links.push({source: node1._id, target: node2._id})
+function replaceNodes(
+    data_lineage_doc,
+    data_lineage_graph_width,
+    data_lineage_graph_heigth,
+    // below arguments are needed only for next iterations. User don't need to pass them when calling this function.
+    min_y_coordinate = undefined,
+    output_table_node = undefined,
+    input_tables_nodes = undefined,
+    script_node = undefined,
+    nodes_levels = undefined,
+    output_table_level_nr = 0
+){
+    `This function works in iterations. In each iteration we are creating one segment. A segment is a set of output table, a script which
+    creates that output table and input tables which are an input for that script
+    
+    max_level_width argument indicates a maximum width of a nodes level. Those are the nodes with the same x coordinate`
+
+    // check if this is the first iteration
+    if (output_table_node == undefined){
+        nodes_levels = createNodesLevels(data_lineage_doc)
+
+        // calculate width of each level (level is a set of nodes with the same x coordinate)
+        const levels_width = []
+        for (let [i, level] of nodes_levels.entries()){
+            const level_nodes = level.flat()
+            const level_nodes_values = []
+            
+            level_nodes.forEach(node => {
+                level_nodes_values.push(node.value)
+            })
+
+            // check what is a width of the level. This is the maximum width of a single node in that level.
+            // It depends on a number of characters in this node value
+            let level_width = level_nodes_values[0].length * 10
+            level_nodes_values.forEach(value => {
+                if (value.length * 10 > level_width) level_width = value.length * 10
+            })
+            if (i != 0) level_width += 100
+            levels_width.push(level_width)
+        }
+
+        const max_x_coordinate = data_lineage_graph_width
+        min_y_coordinate = 20
+
+        // initial position of nodes
+        for (let [i, level] of nodes_levels.entries()){
+            for (let [j, node] of level.flat().entries()){
+                node.x = max_x_coordinate - levels_width.slice(0, i + 1).reduce((previous_value, current_value) => previous_value + current_value)
+                node.y = min_y_coordinate
+            }
+        }
+
+        output_table_node = nodes_levels[output_table_level_nr][0][0]
+        input_tables_nodes = nodes_levels[output_table_level_nr + 2][0]
+        script_node = nodes_levels[output_table_level_nr + 1][0]
+    } 
+
+    // check if this is the end of iterations
+    if (output_table_level_nr == nodes_levels.length - 1) return
+
+    // replace input tables nodes which are being created by some script
+    for (let [i, input_table_node] of input_tables_nodes.entries()){
+        let source_script = findInputNodes(input_table_node, data_lineage_doc)[0]
+
+        if (source_script == undefined) continue
+
+        // check what is the minimal y coordinate for input tables for the next segment (next iteration)
+        let new_min_y_coordinate = -Infinity
+        nodes_levels[output_table_level_nr + 4].flat().forEach(node => {
+            if (node.y > new_min_y_coordinate) new_min_y_coordinate = node.y + 40
+        })
+        // input tables for the next segment (next iteration)
+        let new_input_tables_nodes = findInputNodes(source_script, data_lineage_doc)
+
+        replaceNodes(
+            data_lineage_doc,
+            data_lineage_graph_width,
+            data_lineage_graph_heigth,
+            new_min_y_coordinate,
+            input_table_node,
+            new_input_tables_nodes,
+            source_script,
+            nodes_levels,
+            output_table_level_nr + 2
+        )
+    }
+
+    // replace input tables nodes which are not being created by any script
+    for (let [i, input_table_node] of input_tables_nodes.entries()){
+        let source_script = findInputNodes(input_table_node, data_lineage_doc)[0]
+        if (source_script != undefined) continue
+
+        input_table_node.y = min_y_coordinate
+
+        // check if the node is not to close to other nodes in the same level. If yes then move it
+        let closest_node = findClosestNode(input_table_node, data_lineage_doc)
+
+        if (closest_node == undefined) continue
+        while (Math.abs(closest_node.y - input_table_node.y) < 40){
+            input_table_node.y = closest_node.y + 40
+            closest_node = findClosestNode(input_table_node, data_lineage_doc)
+        }
+    }
+
+    // replace the script node
+    script_node.y = min_y_coordinate + (input_tables_nodes.length - 1) / 2 * 40
+
+    // replace the output table node
+    output_table_node.y = script_node.y
+}
+
+function createNodesLevels(data_lineage_doc, nodes_levels = []){
+    `This function is used in the replaceNodes function.
+    
+    It creates a list of lists of nodes for each level which is called nodes_levels. One level is a 
+    vertical set of nodes in a graph on a website (set of nodes with the same x coordinate).
+
+    nodes_levels[i][0] is a list of tables which are inputs for the nodes_levels[i - 1][0] procedure
+    nodes_levels[i][1] is a list of tables which are inputs for the nodes_levels[i - 1][1] procedure
+    and so on`
+
+    if (nodes_levels.length == 0){
+        for (let node of data_lineage_doc.nodes){
+            if (node.linkedTo.length == 0){
+                nodes_levels = [[[node]]]
+            }
+        }
+        createNodesLevels(data_lineage_doc, nodes_levels)
+    } else {
+        // check if now is a level with tables
+        if (nodes_levels.length % 2 == 0){
+            let previous_level_procedures = nodes_levels.slice(-1)[0]
+            const new_level = []
+
+            for (let procedure of previous_level_procedures){
+                let linked_nodes = findInputNodes(procedure, data_lineage_doc)
+                // new_level.push(linked_nodes)
+
+                // push only those nodes which are tables, not scripts (views tables and scripts has the same name)
+                new_level.push(linked_nodes.filter(x => x.type == 'table'))
+            }
+
+            nodes_levels.push(new_level)
+            createNodesLevels(data_lineage_doc, nodes_levels)
+        } else {
+            //  this is a level with procedures
+            const new_level = []
+            for (let table_node of nodes_levels.slice(-1)[0].flat()){
+                let linked_nodes = findInputNodes(table_node, data_lineage_doc)
+                if (linked_nodes.length > 0) {
+                    // new_level.push(linked_nodes[0])
+
+                    // push only those nodes which are tables, not scripts (views tables and scripts has the same name)
+                    new_level.push(linked_nodes.filter(x => x.type == 'script')[0])
                 }
+            }
+
+            if (new_level.length > 0){
+                nodes_levels.push(new_level)
+                createNodesLevels(data_lineage_doc, nodes_levels)
             }
         }
     }
 
-    const simulation = d3
-        .forceSimulation(nodes)
-        // .force("link", d3.forceLink(links).id(d => d.value).strength(0))
-        .force("link", d3.forceLink(links).id(d => d._id).strength(0))
+    return nodes_levels
+}
 
-    // const svg = d3
-    //     .select("svg")
-    //         .attr("viewBox", [-width / 2, -height / 2, width, height])
-    //         .attr("width", width)
-    //         .attr("height", height)
-    //         .attr("style", "max-width: 100%; height: auto; font: 12px sans-serif;")
+function findClosestNode(node, data_lineage_doc){
+    `This function finds the closest node in the same level (level contains nodes with the same x coordinate)`
 
-    // define style for arrows (markers)
-    // svg
-    //     .append("defs")
-    //     .append("marker")
-    //         .attr("id", 'arrow')
-    //         .attr("viewBox", "0 -5 10 10")
-    //         .attr("refX", 5)
-    //         .attr("refY", -0.5)
-    //         .attr("markerWidth", 6)
-    //         .attr("markerHeight", 6)
-    //         .attr("orient", "auto")
-    //     .append("path")
-    //         .attr("fill", 'black')
-    //         .attr("d", "M0,-5L10,0L0,5")
+    let closest_node
+    for (let node2 of data_lineage_doc.nodes){
+        if (closest_node == undefined){
+            if (
+                node2.value != node.value
+                & node2.x == node.x
+            )
+                closest_node = node2
+        } else if (
+            node2.value != node.value 
+            & Math.abs(node2.y - node.y) < Math.abs(closest_node.y - node.y)
+            & node2.x == node.x
+        ) 
+            closest_node = node2
+    }
 
-    // links between nodes
-    const link = svg
-        // .append("g")
-        //     .attr("fill", "none")
-        //     .attr("stroke-width", 1.5)
-        .selectAll("path")
-        .data(links)
-        .join("path")
-            .attr("stroke", 'black')
-            .attr("marker-end", d => `url(${new URL(`#arrow`, location)})`)
+    return closest_node
+}
 
-    // nodes with names of tables, systems, scripts etc
-    const node = svg
-        // .append("g")
-        //     .attr("fill", "currentColor")
-        //     .attr("stroke-linecap", "round")
-        //     .attr("stroke-linejoin", "round")
-        .selectAll("g")
-        .data(nodes)
-        .join("g")
-        .classed('node', true)
-        .call(drag(simulation))
+function findInputNodes(node, data_lineage_doc){
+    `This function finds all nodes which are linked to a given node`
+    
+    const linked_nodes = []
+    for (let node2 of data_lineage_doc.nodes){
+        // we need to make sure that nodes types are different because view scripts and tables nodes have the same value
+        if (node2.linkedTo.includes(node.value) & node2.type != node.type) linked_nodes.push(node2)
+    }
 
-    // we add rectangles as a background for a text
-    // node
-    //     .append("rect")
-    //         .attr("fill", d => {
-    //             if (d.type == 'system') return 'blue'
-    //             else if (d.type == 'table') return 'red'
-    //             else if (d.type == 'script') return 'green'
-    //         })
-    //         .attr("x", 5)
-    //         .attr("y", "-0.9em")
-    //         .classed('background', true)
-
-    // adding text to the nodes
-    // node
-    //     .append("text")
-    //         .attr("x", 8)
-    //         .attr("y", "0.3em")
-    //         .style("font-size", "1.5em")
-    //     .text(d => d.value)
-    //     .classed('nodeText', true)
-
-    // adding the 'X' for the buttons for removing nodes
-    // node
-    //     .append('text')
-    //         .attr("y", "0.3em")
-    //         .style("font-size", "1.5em")
-    //     .text('X')
-    //     .classed('closeBtnText', true)
-
-    // adding a rectangle as a button for removing nodes
-    // node
-    //     .append("rect")
-    //         .attr("y", "-0.8em")
-    //         .attr('width', 20)
-    //         .attr('fill', 'transparent')
-    //         .attr('stroke', 'black')
-    //         .attr('stroke-width', '1px')
-    //     .classed('closeBtn', true)
-
-    // adding 'i' for buttons for showing more info about nodes
-    // node
-    //     .append('text')
-    //         .attr("y", "0.3em")
-    //         .style("font-size", "1.5em")
-    //     .text('i')
-    //     .classed('infoBtnText', true)
-
-    // adding a rectangle as a button for showing more info about nodes
-    // node
-    //     .append("rect")
-    //         .attr("y", "-0.8em")
-    //         .attr('width', 20)
-    //         .attr('fill', 'transparent')
-    //         .attr('stroke', 'black')
-    //         .attr('stroke-width', '1px')
-    //     .classed('infoBtn', true)
-
-    // add the graph with nodes to the website
-    // const graph = Object.assign(svg.node())
-    // const dataLineageGraph = document.querySelector('#dataLineageGraph')
-    // dataLineageGraph.appendChild(graph)
-
-    // we need to change sizes and positions of different elements of a visualization after appending it
-    // to the page so we can check what are the sizes of different text elements
-    // adjustVisualization(node, link)
-
-    // return [simulation, node, link]
+    return linked_nodes
 }
 
 // function for changing sizes and positions of different elements of a visualization
@@ -439,3 +502,140 @@ function drag(simulation) {
         .on("drag", dragged)
         .on("end", dragended)
 }
+
+
+
+// // dataLineageDocs argument is created by getData function and it contains data about data lineage
+// // documentation needed for creating a visualization
+// async function updateVisualization(dataLineageDocs){
+//     let links = []
+//     let nodes
+//     for (let document of dataLineageDocs){
+//         if (document.dataLineageId == currentDataLineageId){
+//             nodes = document.nodes
+//             for (let node1 of nodes){
+//                 for (let node2 of nodes){
+//                     if (node1.linkedTo.includes(node2.value) & node1.type != node2.type) 
+//                         links.push({source: node1._id, target: node2._id})
+//                 }
+//             }
+//         }
+//     }
+
+//     const simulation = d3
+//         .forceSimulation(nodes)
+//         .force("link", d3.forceLink(links).id(d => d._id).strength(0))
+
+//     // const svg = d3
+//     //     .select("svg")
+//     //         .attr("viewBox", [-width / 2, -height / 2, width, height])
+//     //         .attr("width", width)
+//     //         .attr("height", height)
+//     //         .attr("style", "max-width: 100%; height: auto; font: 12px sans-serif;")
+
+//     // define style for arrows (markers)
+//     // svg
+//     //     .append("defs")
+//     //     .append("marker")
+//     //         .attr("id", 'arrow')
+//     //         .attr("viewBox", "0 -5 10 10")
+//     //         .attr("refX", 5)
+//     //         .attr("refY", -0.5)
+//     //         .attr("markerWidth", 6)
+//     //         .attr("markerHeight", 6)
+//     //         .attr("orient", "auto")
+//     //     .append("path")
+//     //         .attr("fill", 'black')
+//     //         .attr("d", "M0,-5L10,0L0,5")
+
+//     // links between nodes
+//     const link = svg
+//         // .append("g")
+//         //     .attr("fill", "none")
+//         //     .attr("stroke-width", 1.5)
+//         .selectAll("path")
+//         .data(links)
+//         .join("path")
+//             .attr("stroke", 'black')
+//             .attr("marker-end", d => `url(${new URL(`#arrow`, location)})`)
+
+//     // nodes with names of tables, systems, scripts etc
+//     const node = svg
+//         // .append("g")
+//         //     .attr("fill", "currentColor")
+//         //     .attr("stroke-linecap", "round")
+//         //     .attr("stroke-linejoin", "round")
+//         .selectAll("g")
+//         .data(nodes)
+//         .join("g")
+//         .classed('node', true)
+//         .call(drag(simulation))
+
+//     // we add rectangles as a background for a text
+//     // node
+//     //     .append("rect")
+//     //         .attr("fill", d => {
+//     //             if (d.type == 'system') return 'blue'
+//     //             else if (d.type == 'table') return 'red'
+//     //             else if (d.type == 'script') return 'green'
+//     //         })
+//     //         .attr("x", 5)
+//     //         .attr("y", "-0.9em")
+//     //         .classed('background', true)
+
+//     // adding text to the nodes
+//     // node
+//     //     .append("text")
+//     //         .attr("x", 8)
+//     //         .attr("y", "0.3em")
+//     //         .style("font-size", "1.5em")
+//     //     .text(d => d.value)
+//     //     .classed('nodeText', true)
+
+//     // adding the 'X' for the buttons for removing nodes
+//     // node
+//     //     .append('text')
+//     //         .attr("y", "0.3em")
+//     //         .style("font-size", "1.5em")
+//     //     .text('X')
+//     //     .classed('closeBtnText', true)
+
+//     // adding a rectangle as a button for removing nodes
+//     // node
+//     //     .append("rect")
+//     //         .attr("y", "-0.8em")
+//     //         .attr('width', 20)
+//     //         .attr('fill', 'transparent')
+//     //         .attr('stroke', 'black')
+//     //         .attr('stroke-width', '1px')
+//     //     .classed('closeBtn', true)
+
+//     // adding 'i' for buttons for showing more info about nodes
+//     // node
+//     //     .append('text')
+//     //         .attr("y", "0.3em")
+//     //         .style("font-size", "1.5em")
+//     //     .text('i')
+//     //     .classed('infoBtnText', true)
+
+//     // adding a rectangle as a button for showing more info about nodes
+//     // node
+//     //     .append("rect")
+//     //         .attr("y", "-0.8em")
+//     //         .attr('width', 20)
+//     //         .attr('fill', 'transparent')
+//     //         .attr('stroke', 'black')
+//     //         .attr('stroke-width', '1px')
+//     //     .classed('infoBtn', true)
+
+//     // add the graph with nodes to the website
+//     // const graph = Object.assign(svg.node())
+//     // const dataLineageGraph = document.querySelector('#dataLineageGraph')
+//     // dataLineageGraph.appendChild(graph)
+
+//     // we need to change sizes and positions of different elements of a visualization after appending it
+//     // to the page so we can check what are the sizes of different text elements
+//     // adjustVisualization(node, link)
+
+//     // return [simulation, node, link]
+// }
